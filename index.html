@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><title>AI 教室實驗場</title>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>AI 模擬教室</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;background:#eef1f5;color:#222;font-size:14px;overflow:hidden}
@@ -30,11 +30,34 @@ textarea{font-family:monospace;height:140px}.row{display:flex;gap:6px}.row>*{fle
 #errbar{display:none;background:#fdd;color:#900;padding:3px 8px;border-radius:6px;font-size:12px}
 details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
 .hint{font-size:11px;color:#777}
+/* mobile-only pieces; on desktop the section wrappers vanish from layout */
+.mhead{display:none}.msec{display:contents}#room{touch-action:manipulation}
+@media (max-width:760px),(max-height:520px) and (orientation:landscape){
+ html,body{height:auto}body{overflow-x:hidden;overflow-y:auto}
+ header{position:sticky;top:0;z-index:10;height:38px;padding:0 8px;gap:8px}header h1{font-size:15px}#usage,#btnToggle{display:none}
+ main{display:flex;flex-direction:column;height:auto;padding:6px;gap:6px}
+ #center{order:1}#side{order:2}#settings{order:3}body.nosettings #settings{display:block}
+ #stage{order:1;flex:none;width:100%;aspect-ratio:820/525}#controls{order:2}#errbar{order:3}#chart{order:4;height:64px}
+ #controls{gap:5px}#controls button{padding:7px 9px;font-size:13px;min-height:38px}#controls label{font-size:13px;padding:6px 2px}#controls select{min-height:34px;font-size:14px}#mode{flex-basis:100%}
+ #board{width:min(190px,40%);font-size:11px}#boardBody{max-height:56px;line-height:14px}
+ .panel{overflow:visible;padding:4px 8px}
+ .mhead,.msec>h3{display:flex;align-items:center;min-height:42px;margin:0;font-size:15px;font-weight:bold;cursor:pointer;border-bottom:none;-webkit-tap-highlight-color:transparent}
+ .mhead::after,.msec>h3::after{content:"▸";margin-left:auto;color:#668}#settings.open>.mhead::after,.msec.open>h3::after{content:"▾"}
+ #settings:not(.open)>:not(.mhead){display:none!important}.msec{display:block;border-top:1px solid #e3e6ea}.msec:first-child{border-top:none}.msec:not(.open)>:not(h3){display:none!important}
+ #detail{max-height:40vh!important;overflow:auto}#log{max-height:50vh}
+ input,select,textarea{font-size:16px}button{min-height:34px}
+}
+@media (max-height:520px) and (orientation:landscape){
+ #center{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:6px;align-items:start}
+ #stage{grid-column:1;grid-row:1/4;width:auto;height:calc(100vh - 50px);height:calc(100dvh - 50px);max-width:66vw}
+ #controls,#errbar,#chart{grid-column:2}#chart{width:100%}
+}
 </style></head><body>
-<header><button class="sm" id="btnToggle" title="顯示／隱藏設定">⚙️ 設定</button><h1>🏫 AI 教室實驗場</h1>
+<header><button class="sm" id="btnToggle" title="顯示／隱藏設定">⚙️ 設定</button><h1>🏫 AI 模擬教室</h1>
 <span class="stat" id="stat">尚未開始</span><span class="stat" id="usage">呼叫 0 次｜詞元 0</span></header>
 <main>
 <div class="panel" id="settings">
+<div class="mhead">⚙️ 設定、課程與角色</div>
 <h3>⚙️ AI 設定</h3>
 <label>AI 服務</label><select id="provider"><option value="gemini" selected>Google Gemini（OpenAI 相容）</option><option value="openai">OpenAI</option><option value="ollama">本地 Ollama</option><option value="custom">自訂（OpenAI 相容端點）</option></select>
 <label>Base URL</label><input id="baseUrl">
@@ -63,9 +86,9 @@ details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
 <div id="stage"><canvas id="room"></canvas><canvas id="topLayer"></canvas><div id="board"><div class="bh">🧑‍🏫 黑板 <span id="boardMin"></span></div><div id="boardBody">（空）</div></div></div>
 <canvas id="chart"></canvas>
 </div>
-<div class="panel" style="display:flex;flex-direction:column">
-<h3>🧑‍🎓 角色詳情（點教室裡的人）</h3><div id="detail" style="max-height:45%;overflow:auto">點選任一位學生或老師，可以看人設和行為紀錄。點對話框可以展開完整內容。</div>
-<h3>📜 事件紀錄（全班）</h3><div id="log" style="flex:1;overflow:auto"></div>
+<div class="panel" id="side" style="display:flex;flex-direction:column">
+<section class="msec" id="secDetail"><h3>🧑‍🎓 角色詳情（點教室裡的人）</h3><div id="detail" style="max-height:45%;overflow:auto">點選任一位學生或老師，可以看人設和行為紀錄。點對話框可以展開完整內容。</div></section>
+<section class="msec" id="secLog"><h3>📜 事件紀錄（全班）</h3><div id="log" style="flex:1;overflow:auto"></div></section>
 </div></main>
 <script>
 "use strict";
@@ -144,6 +167,8 @@ const RETIRED={"gemini-2.0-flash":"gemini-3.1-flash-lite","gemini-3.0-flash":"ge
 function migrateModels(){["tModel","sModel"].forEach(id=>{const v=$(id).value.trim();if(RETIRED[v]){$(id).value=RETIRED[v];saveSettings();}});}
 $("provider").onchange=()=>{applyPreset();saveSettings();};FIELDS.concat(["apiKey","randomize"]).forEach(f=>$(f).addEventListener("change",saveSettings));
 $("btnToggle").onclick=()=>{document.body.classList.toggle("nosettings");};
+// phone layout: settings / details / log fold into tap-to-open sections (no effect on desktop)
+document.querySelectorAll(".mhead,.msec>h3").forEach(h=>h.addEventListener("click",()=>h.parentElement.classList.toggle("open")));
 // ---------- LLM ----------
 const usage={calls:0,tokens:0,errors:0};
 function showUsage(){$("usage").textContent=`呼叫 ${usage.calls} 次｜詞元 ${usage.tokens}｜錯誤 ${usage.errors}`;}
@@ -160,7 +185,7 @@ function httpHint(status,tx){
 let PROG=null;
 function showProg(){if(!PROG||!S||S.meta.fake)return;const who=PROG.active.length?`正在問：${PROG.active.slice(0,3).join("、")}${PROG.active.length>3?" 等":""}…`:"播放這一回合…";
  $("stat").textContent=`⏳ 第 ${PROG.m} / ${S.meta.minutes} 分鐘｜${who}（${Math.min(PROG.done,PROG.total)}/${PROG.total}）`;}
-function progStart(ctx){if(!PROG)return null;const nm=ctx.kind==="plan"?"老師（備課）":ctx.kind==="teacher"?"老師":(ctx.st&&ctx.st.name)||"?";if(ctx.kind==="reply")PROG.total++;PROG.active.push(nm);showProg();return nm;}
+function progStart(ctx){if(!PROG)return null;const nm=ctx.kind==="plan"?"老師（備課）":ctx.kind==="teacher"||ctx.kind==="tanswer"?"老師":(ctx.st&&ctx.st.name)||"?";if(ctx.kind==="reply"||ctx.kind==="tanswer")PROG.total++;PROG.active.push(nm);showProg();return nm;}
 function progEnd(nm){if(!PROG||nm==null)return;const k=PROG.active.indexOf(nm);if(k>=0)PROG.active.splice(k,1);PROG.done++;showProg();}
 async function chat(model,system,user,ctx,tries=3){if(S&&!S.meta.fake){const nm=progStart(ctx);try{return await chatRaw(model,system,user,ctx,tries);}finally{progEnd(nm);}}return chatRaw(model,system,user,ctx,tries);}
 async function chatRaw(model,system,user,ctx,tries=3){let rl429=0;
@@ -242,6 +267,7 @@ function fakeTeacherScript(m){const pk=S._pack||lessonPack(S.meta.topic),seg=((S
  return {action:"lecture",content:`我們再回頭看一次黑板上的重點「${pick(covered.length?covered:[pk.kw])}」。這個觀念是後面所有內容的基礎，還不熟的同學現在把它抄進筆記，旁邊寫一句你自己的解釋。`};}
 function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
  if(ctx.kind==="plan")return fakePlan();
+ if(ctx.kind==="tanswer"){const q=ctx.st;return {content:`${q.name}問得好！`+(buoy?pick(["浮力只跟液體密度和排開的體積有關，跟物體多重沒有直接關係。","鐵塊會沉，是因為它排開的水太少，浮力比重量小。","公式是 B = ρ液 × V排 × g，等一下我們一起算一題。"]):pick([`關鍵是先看清楚條件，再對照黑板上「${kw}」的規律。`,"這個等一下做例題你就會懂。","先把題目的條件圈出來，再一步一步來。"]))};}
  if(ctx.kind==="reply"){const B=ctx.st,d=threadDepth(B.name,ctx.from.name);
   if(B.state.action==="sleep"&&Math.random()<.7)return {action:"sleep",content:"Zzz…（沒聽到）",mood:"想睡",attention:B.state.attention};
   if(Math.random()<.85)return {action:"chat",target:ctx.from.name,content:fakeReplyLine(ctx.msg,d),mood:"開心",attention:Math.max(20,(B.state.attention??60)-5)};
@@ -251,7 +277,7 @@ function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
  if(ctx.kind==="teacher"){const m=ctx.m;
   // the teacher only reacts to what students are doing RIGHT NOW (the states on screen); otherwise follows the lesson script
   const bad=studs.filter(s=>["sleep","phone"].includes(s.state.action)),chatters=studs.filter(s=>s.state.action==="chat"),
-   askers=studs.filter(s=>s.state.action==="ask"),answerers=studs.filter(s=>s.state.action==="answer"&&/老師|^$/.test(s.state.target||""));
+   askers=studs.filter(s=>s.state.action==="ask"&&!(S._answered&&S._answered.has(s.name))),answerers=studs.filter(s=>s.state.action==="answer"&&/老師|^$/.test(s.state.target||""));
   let r;
   if(answerers.length){const t=pick(answerers);const good=Math.random()<.65;const s=fakeTeacherScript(m);
    const fb=good?`${t.name}答得很好！${buoy?"重點就是排開的液體越多，浮力越大。":"就是這樣，抓到關鍵條件了。"}`:`很接近了，${t.name}，再想一下「${kwOf()}」的規律。`;
@@ -321,13 +347,13 @@ function validateTeacher(r,m){const studs=S.students;let a=T_ACT_ZH[r.action]?r.
  else if(a==="patrol"){if(m-(S._lastPatrol??-99)<3){a="lecture";content=content&&!/走|巡|下去/.test(content)?content:"大家看這邊。";}else S._lastPatrol=m;}
  else target="";
  // a student who just answered/asked must get a response before the teacher moves on
- const ans=studs.filter(s=>s.state.action==="answer"),ask=studs.filter(s=>s.state.action==="ask");
+ const ans=studs.filter(s=>s.state.action==="answer"),ask=studs.filter(s=>s.state.action==="ask"&&!(S._answered&&S._answered.has(s.name)));
  if(ans.length&&!["feedback","answer","discipline"].includes(a)&&!content.includes(ans[0].name)){const t=ans[0];a="feedback";target=t.name;content=`${t.name}，謝謝你的回答。`+content;}
  else if(!S.meta.fake&&ask.length&&!["feedback","answer","discipline"].includes(a)&&!ask.some(s=>content.includes(s.name))){const t=ask[0];content=`${t.name}的問題很好，我等一下會回答。`+content;}
  return {action:a,target,content,board:r.board||"",mood:r.mood||""};}
 async function teacherTurn(m){const T=S.teacher;
  const sys=`你是${T.name}，台灣國中老師。風格：${T.style}。你正在教「${S.meta.topic}」。請用繁體中文，只輸出一個 JSON 物件。`;
- const said=S.students.filter(s=>["ask","answer"].includes(s.state.action)&&s.state.content).map(s=>`${s.name}${ACT_ZH[s.state.action]}：「${s.state.content}」`).join("；");
+ const said=S.students.filter(s=>["ask","answer"].includes(s.state.action)&&s.state.content).map(s=>`${s.name}${ACT_ZH[s.state.action]}：「${s.state.content}」`+(S._answered&&S._answered.has(s.name)?"（你剛剛已經當場回答過了，不用再回答）":"")).join("；");
  const bad=S.students.filter(s=>MISBEHAVE.has(s.state.action)).map(s=>`${s.name}(${ACT_ZH[s.state.action]})`).join("、");
  const u=`現在是第 ${m} 分鐘（共 ${S.meta.minutes} 分鐘）。教案目標：${S.plan.goal}。這段該做：${curSegment(m)}。
 本段要講的重點：${(((S.plan.segments||[]).find(s=>m>=s.start&&m<s.end)||{}).points||[]).join("；")||"（自行決定）"}
@@ -383,8 +409,8 @@ function applyStudent(st,r,m){const T=S.teacher;const a=r.action;
   const tgt=S.students.find(o=>o.name===st.state.target);if(tgt)remember(tgt,`第${m}分 ${st.name}對我說：「${st.state.content}」`);
   if(a!=="chat")remember(T,`第${m}分 ${st.name}${ACT_ZH[a]}：「${st.state.content}」`);}
  else if(["phone","sleep"].includes(a))addEvent(m,st.name,`（${ACT_ZH[a]}）${st.state.content}`);}
-function snapshotFrame(m,order,seq){const att=Math.round(S.students.reduce((s,x)=>s+(x.state.attention||0),0)/S.students.length);S.attention.push({min:m,value:att});
- S.frames.push({min:m,blackboard:S.blackboard,teacher:{...S.teacher.state},students:S.students.map(s=>({...s.state})),order,seq});}
+function snapshotFrame(m,order,seq,extra){const att=Math.round(S.students.reduce((s,x)=>s+(x.state.attention||0),0)/S.students.length);S.attention.push({min:m,value:att});
+ S.frames.push({min:m,blackboard:S.blackboard,teacher:{...S.teacher.state},students:S.students.map(s=>({...s.state})),order,seq,...(extra||{})});}
 function tickMs(){return +$("speed").value||0;}
 // ---------- teacher speaks one sentence at a time ----------
 let SPEECH=null;
@@ -430,40 +456,72 @@ function spreadOffsets(n,span){const lead=span*.1,w=span-lead,slot=w/Math.max(1,
 // how long a spoken bubble stays up: by length, with a little personal variation, scaled by the speed setting
 function bubbleDur(text){const d=tickMs();const base=Math.max(1600,Math.min(5000,String(text||"").length*140))*(.85+Math.random()*.4);return d?base*(d/2000):1200;}
 function markShown(st){st._shownAt=clockNow();st._dur=bubbleDur(st.state.content);}
+// ---------- natural Q&A timing (v12) ----------
+// whoever is asked something answers 2–4 s (at 1×) after the question bubble shows, scaled by the speed setting
+function qaDelay(){const d=tickMs();return d?(2000+Math.random()*2000)*(d/2000):0;}
+// ms after the turn starts at which the teacher's sentence addressing `name` (or the question sentence) shows
+function teacherCueMs(Ts,name){if(!SPEECH||!SPEECH.list.length)return 0;const L=SPEECH.list;let k=name?L.findIndex(x=>x.includes(name)):-1;
+ if(k<0&&["question","call_on"].includes(Ts.action))for(let j=L.length-1;j>=0;j--)if(/[？?]/.test(L[j])){k=j;break;}
+ if(k<0)k=name&&Ts.action!=="call_on"?0:L.length-1;return SPEECH.durs.slice(0,k).reduce((x,y)=>x+y,0);}
+// the teacher cuts in with a short answer, then picks up the interrupted sentence again
+function insertTeacherLine(text){if(!SPEECH)SPEECH={list:[],durs:[],el:0};const add=splitSentences(text),ad=add.map(sentenceMs);
+ const total=SPEECH.durs.reduce((x,y)=>x+y,0),i=speechIdx();
+ if(i<0||SPEECH.el>=total){SPEECH.list.push(...add);SPEECH.durs.push(...ad);SPEECH.el=total;return;}
+ const before=SPEECH.durs.slice(0,i).reduce((x,y)=>x+y,0),done=SPEECH.el-before,left=SPEECH.durs[i]-done,cur=SPEECH.list[i];
+ SPEECH.durs[i]=done;SPEECH.list.splice(i+1,0,...add,cur);SPEECH.durs.splice(i+1,0,...ad,Math.max(left,sentenceMs(cur)*.5));}
+async function waitSpeech(abort){while(SPEECH&&SPEECH.el<SPEECH.durs.reduce((x,y)=>x+y,0)-1&&!abort())await sleep(40);}
+async function teacherQuickAnswer(st,m){const T=S.teacher;
+ const sys=`你是${T.name}，台灣國中老師。風格：${T.style}。你正在教「${S.meta.topic}」。請用繁體中文，只輸出一個 JSON 物件。`;
+ const u=`上課中（第 ${m} 分鐘），學生 ${st.name} 舉手問你：「${st.state.content}」。請當場用 1～2 句話簡短、有實質內容地回答他，開頭叫他的名字，答完就會繼續上課。輸出：{"content":"你的回答"}`;
+ const r=await chat(S.meta.model.teacher,sys,u,{kind:"tanswer",st,m});return String(r.content||`${st.name}，好問題，我等一下會講到。`).trim();}
 async function runStudentTimeline(m,Ts,span){
- const studs=S.students,n=studs.length,t0=clockNow(),idx=nm=>studs.findIndex(s=>s.name===nm),abort=()=>!running;
- PREV=studs.map(s=>s.state);
- const off=spreadOffsets(n,span),seq=[],revealed=new Array(n).fill(null),locked=new Set(),handled=new Set(),jobs=[];
- const beat=()=>span?span*(.06+Math.random()*.08):0;
+ const studs=S.students,n=studs.length,t0=clockNow(),idx=nm=>studs.findIndex(s=>s.name===nm),abort=()=>!running,now=()=>clockNow()-t0;
+ PREV=studs.map(s=>s.state);S._answered=new Set();
+ const off=spreadOffsets(n,span),seq=S._seq=[],revealed=new Array(n).fill(null),locked=new Set(),addressed=new Set(),jobs=[];
+ const stamp=()=>({ms:Math.round(now()),f:span?+(now()/span).toFixed(3):0});
  // someone who started a chat last turn and got no answer keeps waiting — shown right away, before anyone can reply
  const waiters={};studs.forEach((st,i)=>{const ps=st.state;if(ps.action==="chat"&&ps.initiated&&!ps.isReply){const B=studs[idx(ps.target)];
   if(B&&!(B.state.action==="chat"&&B.state.target===st.name)){waiters[i]={action:"wait",target:B.name,content:`等${B.name}回我…`,mood:"期待",attention:ps.attention,pendingMsg:ps.content};off[i]=0;locked.add(i);}}});
- const show=(i,r)=>{applyStudent(studs[i],r,m);markShown(studs[i]);seq.push({i,f:span?+((clockNow()-t0)/span).toFixed(3):0,state:{...studs[i].state}});};
- // pair a revealed chat starter with their partner once the partner has made their own move; the reply follows a beat later
- const tryPairs=()=>revealed.forEach((r,a)=>{if(!r||handled.has(a)||r.action!=="chat"||!r.initiated)return;const b=idx(r.target);
-  if(b<0||waiters[b]){handled.add(a);return;}if(!revealed[b])return;handled.add(a);
-  const rb=revealed[b];if(locked.has(b)||(rb.action==="chat"&&rb.initiated))return;// partner busy → the starter waits next turn
-  locked.add(a);locked.add(b);bumpThread(studs[a].name,studs[b].name);const ta=clockNow();
-  jobs.push(replyTurn(studs[b],studs[a],r.content,m,Ts).then(async r2=>{await waitClock(Math.max(clockNow(),ta+beat()),abort);if(!running)return;
-   r2.isReply=true;revealed[b]=r2;show(b,r2);}).catch(e=>showErr(studs[b].name+" 回話失敗："+e.message)));});
+ // students the teacher is talking to this turn can't be pulled into a chat; they owe the teacher a reaction
+ studs.forEach((st,i)=>{if(Ts.target===st.name)locked.add(i);});
+ const show=(i,r,q)=>{applyStudent(studs[i],r,m);markShown(studs[i]);revealed[i]=r;seq.push({i,...stamp(),state:{...studs[i].state},...(q?{q}:{})});};
+ // B is asked by A: a follow-up call starts right away with A's words as context; B shows nothing else until the reply
+ const startReply=(b,a,msg,depth)=>{const q={i:a,ms:Math.round(now())},due=t0+q.ms+qaDelay();
+  jobs.push(replyTurn(studs[b],studs[a],msg,m,Ts).then(async r2=>{await waitClock(due,abort);if(!running)return;
+   r2.isReply=true;r2.initiated=false;bumpThread(studs[b].name,studs[a].name);show(b,r2,q);
+   // sometimes the asker reacts once more, at the same natural pace
+   if(depth<1&&r2.action==="chat"&&threadDepth(studs[a].name,studs[b].name)<3&&Math.random()<.45)startReply(a,b,r2.content,depth+1);
+  }).catch(e=>showErr(studs[b].name+" 回話失敗："+e.message)));};
+ const startTeacherAnswer=i=>{const st=studs[i],q={i,ms:Math.round(now())},due=t0+q.ms+qaDelay();
+  jobs.push(teacherQuickAnswer(st,m).then(async text=>{await waitClock(due,abort);if(!running)return;
+   insertTeacherLine(text);S._answered.add(st.name);seq.push({i:-1,T:1,...stamp(),target:st.name,content:text,q});
+   addEvent(m,S.teacher.name,`【當場回答→${st.name}】${text}`,"tch");remember(S.teacher,`第${m}分 當場回答${st.name}：${text}`);
+  }).catch(e=>showErr("老師回答失敗："+e.message)));};
  const reveal=(i,r)=>{const st=studs[i];
-  if(r.action==="chat"){const ai=idx(r.target),ra=revealed[ai];
-   r.isReply=talkersOf(st).some(o=>o.name===r.target)||!!(ra&&ra.action==="chat"&&ra.target===st.name&&ra.initiated);r.initiated=!r.isReply;
-   if(r.isReply){bumpThread(st.name,r.target);locked.add(i);locked.add(ai);handled.add(ai);}}
-  revealed[i]=r;show(i,r);tryPairs();};
+  if(r.action==="chat"){const ai=idx(r.target),ra=ai>=0?revealed[ai]:null;
+   r.isReply=talkersOf(st).some(o=>o.name===r.target)||!!(ra&&ra.action==="chat"&&ra.target===st.name);r.initiated=!r.isReply;
+   if(r.isReply){bumpThread(st.name,r.target);locked.add(i);if(ai>=0)locked.add(ai);}}
+  show(i,r,r.action==="chat"&&r.isReply&&waiters[idx(r.target)]?{i:idx(r.target),ms:0,w:1}:null);
+  if(r.action==="chat"&&r.initiated){const b=idx(r.target),rb=b>=0?revealed[b]:null;
+   if(b>=0&&!waiters[b]&&!locked.has(b)&&!(rb&&rb.action==="chat"&&rb.initiated)){locked.add(i);locked.add(b);addressed.add(b);bumpThread(st.name,studs[b].name);startReply(b,i,r.content,0);}}
+  if(r.action==="ask")startTeacherAnswer(i);};
+ let answerN=0;const qCue=teacherCueMs(Ts,""),cues=studs.map(st=>Ts.target===st.name?teacherCueMs(Ts,st.name):qCue);// fixed before any cut-in changes the speech
  // every student's result shows up as soon as their own call returns (and their slot has come), not when the whole class is done
  await Promise.all(studs.map((st,i)=>{const p=waiters[i]?Promise.resolve(waiters[i]):studentTurn(st,m,Ts).then(r=>validateStudent(st,r,Ts));
   return p.catch(e=>{showErr(st.name+" 回合失敗："+e.message);addEvent(m,"系統",st.name+" 回合失敗（保持原狀）","err");return null;})
-   .then(async r=>{await waitClock(t0+off[i],abort);if(r&&running)reveal(i,r);});}));
+   .then(async r=>{if(!r)return;let due=t0+off[i];
+    if(Ts.target===st.name||r.action==="answer")due=t0+cues[i]+qaDelay()*(1+.6*(Ts.target===st.name?0:answerN++));
+    else if(r.action==="chat"&&waiters[idx(r.target)])due=Math.max(due,t0+qaDelay());
+    await waitClock(due,abort);if(running&&!addressed.has(i))reveal(i,r);});}));
  while(jobs.length){const j=jobs.splice(0);await Promise.all(j);}
- await waitClock(t0+span,abort);PREV=null;
- const last={};seq.forEach((e,k)=>last[e.i]=k);
- return {seq,order:Object.keys(last).map(Number).sort((a,b)=>last[a]-last[b])};}
+ await waitClock(t0+span,abort);await waitSpeech(abort);PREV=null;
+ const last={};seq.forEach((e,k)=>{if(e.i>=0)last[e.i]=k;});
+ return {seq,order:Object.keys(last).map(Number).sort((a,b)=>last[a]-last[b]),cues:cues.map(Math.round)};}
 async function runSim(fake){lastReplay=null;saveSettings();$("log").innerHTML="";$("errbar").style.display="none";
  try{S=newState(fake);}catch(e){showErr(e.message);return;}
  usage.calls=usage.tokens=usage.errors=0;showUsage();
  replay=null;running=true;paused=false;selected=null;expanded.clear();shownInfo.clear();resetAnim();setButtons();document.body.classList.add("nosettings");
- $("mode").textContent=fake?"🧪 模擬試跑中（內建假 AI，不連網）":"🔴 AI 即時模擬中";
+ $("mode").textContent=fake?"🧪 模擬試跑中":"🔴 AI 即時模擬中";
  $("stat").textContent="產生教案中…";PROG=fake?null:{m:0,done:0,total:1,active:[]};await makePlan();
  for(let m=0;m<S.meta.minutes&&running;m+=S.meta.tick){S.minute=m;S._responders=null;
   while(paused&&!stepReq&&running)await sleep(100);stepping=stepReq;stepReq=false;if(!running)break;
@@ -475,7 +533,7 @@ async function runSim(fake){lastReplay=null;saveSettings();$("log").innerHTML=""
   const Ts={...S.teacher.state};
   const span=D?Math.max(D*.85,talk-D*.1):0;// stretch the turn so every sentence can be read; students react in between
   const tl=await runStudentTimeline(m,Ts,span);
-  snapshotFrame(m,tl.order,tl.seq);drawChart();renderDetail();stepping=false;}
+  snapshotFrame(m,tl.order,tl.seq,{span:Math.round(span),cues:tl.cues});drawChart();renderDetail();stepping=false;}
  finish();}
 function finish(){PROG=null;running=false;paused=false;setButtons();if(S){S.meta.usage={...usage};$("stat").textContent=`下課！共 ${S.frames.length} 回合`;$("mode").textContent=S.frames.length?"✅ 已完成，可匯出紀錄":"";}window.__runDone=true;}
 function setButtons(){const busy=running||!!replay;$("btnReplay").style.display=lastReplay?"":"none";$("btnReplay").disabled=running;["btnStart","btnFake","btnLoad"].forEach(b=>$(b).disabled=busy);["btnPause","btnStep","btnStop"].forEach(b=>$(b).disabled=!busy);$("btnPause").textContent=paused?"▶ 繼續":"⏸ 暫停";}
@@ -494,7 +552,7 @@ let lastReplay=null,replayP=null;
 $("file").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(replay){replay.stop=true;await replayP;}lastReplay=data;replayP=startReplay(data);await replayP;}catch(err){showErr("無法讀取紀錄："+err.message);replay=null;setButtons();}e.target.value="";};
 // restart the loaded log from the beginning (works mid-replay and after it ends)
 $("btnReplay").onclick=async()=>{if(!lastReplay||running)return;if(replay){replay.stop=true;await replayP;}replayP=startReplay(lastReplay).catch(err=>{showErr("重播失敗："+err.message);replay=null;setButtons();});};
-async function startReplay(data){if(!data.frames||!data.students)throw new Error("不是本實驗場匯出的紀錄檔");
+async function startReplay(data){if(!data.frames||!data.students)throw new Error("不是本模擬教室匯出的紀錄檔");
  const studs=fixSeats(data.students.map(s=>({...s,log:s.log||[],memory:[]})));
  S={...data,meta:{...data.meta},teacher:{...data.teacher,log:data.teacher.log||[]},students:studs,attention:[],events:[],blackboard:"",minute:0};
  S.teacher.state={action:"lecture",target:"",content:""};studs.forEach(s=>s.state={action:"listen",content:"",attention:70});
@@ -505,15 +563,17 @@ async function startReplay(data){if(!data.frames||!data.students)throw new Error
   while(paused&&!stepReq&&!replay.stop)await sleep(100);stepping=stepReq;stepReq=false;
   const D=tickMs()||60;
   S.minute=fr.min;S.blackboard=fr.blackboard||"";S.teacher.state=fr.teacher;teacherGo(fr.teacher);const talk=startSpeech(fr.teacher.content);const span=Math.max(D*.85,talk-D*.1);
-  const mine=evs.filter(ev=>ev.min===fr.min);mine.filter(ev=>!sNames.has(ev.who)).forEach(ev=>{S.events.push(ev);renderEvent(ev);});
+  const mine=evs.filter(ev=>ev.min===fr.min);const tAns=mine.filter(ev=>!sNames.has(ev.who)&&/^【當場回答→/.test(ev.text));mine.filter(ev=>!sNames.has(ev.who)&&!tAns.includes(ev)).forEach(ev=>{S.events.push(ev);renderEvent(ev);});
   $("stat").textContent=`重播：第 ${fr.min} / ${data.meta.minutes} 分鐘`;
   let seq=fr.seq;
   if(!seq){const ks=(fr.order||shuffle(fr.students.map((_,k)=>k))).filter(k=>S.students[k]&&fr.students[k]);const off=spreadOffsets(ks.length,1).sort((a,b)=>a-b);seq=ks.map((k,j)=>({i:k,f:off[j],state:fr.students[k]}));}
   const evq={};mine.filter(ev=>sNames.has(ev.who)).forEach(ev=>(evq[ev.who]=evq[ev.who]||[]).push(ev));const t0=clockNow(),stop=()=>replay.stop;
-  for(const e of seq){await waitClock(t0+e.f*span,stop);if(replay.stop)break;const st=S.students[e.i];if(!st)continue;st.state={...e.state};markShown(st);
+  for(const e of seq){await waitClock(t0+e.f*span,stop);if(replay.stop)break;
+   if(e.T){insertTeacherLine(e.content);const ev=tAns.shift();if(ev){S.events.push(ev);renderEvent(ev);}continue;}
+   const st=S.students[e.i];if(!st)continue;st.state={...e.state};markShown(st);
    if((SPOKEN.has(st.state.action)&&st.state.content)||["phone","sleep"].includes(st.state.action)){const ev=(evq[st.name]||[]).shift();if(ev){S.events.push(ev);renderEvent(ev);}}}
-  Object.values(evq).flat().forEach(ev=>{S.events.push(ev);renderEvent(ev);});
-  await waitClock(t0+span,stop);stepping=false;
+  Object.values(evq).flat().concat(tAns).forEach(ev=>{S.events.push(ev);renderEvent(ev);});
+  await waitClock(t0+span,stop);await waitSpeech(stop);stepping=false;
   if(data.attention&&data.attention[i])S.attention.push(data.attention[i]);drawChart();renderDetail();}
  S.frames=data.frames;S.events=evs;S.attention=data.attention||[];replay=null;setButtons();$("stat").textContent="重播結束";window.__replayDone=true;}
 window.startReplay=startReplay;
@@ -804,12 +864,13 @@ function render(now){const dt=Math.min(.1,(now-lastT)/1000);lastT=now;const t=no
  drawOverlay(studs);
  if(!S){ctx.fillStyle="#000a";ctx.font="bold 15px sans-serif";const m="按「▶ 開始上課」或「🧪 模擬試跑」，也可以載入紀錄重播";const w=ctx.measureText(m).width+20;ctx.beginPath();ctx.roundRect(W/2-w/2,H-36,w,28,8);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(m,W/2-w/2+10,H-17);}
  requestAnimationFrame(render);}
-room.onclick=e=>{const r=room.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
- const hb=hitBubbles.slice().reverse().find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+let lastPtr="mouse";room.addEventListener("pointerdown",e=>{lastPtr=e.pointerType||"mouse";});
+room.onclick=e=>{const r=room.getBoundingClientRect(),x=(e.clientX-r.left)*(W/(r.width||W)),y=(e.clientY-r.top)*(H/(r.height||H)),pad=lastPtr==="touch"?10:0;
+ const hb=hitBubbles.slice().reverse().find(b=>x>=b.x-pad&&x<=b.x+b.w+pad&&y>=b.y-pad&&y<=b.y+b.h+pad);
  // one bubble at a time is brought to the front; clicking it again, or anywhere else, puts it back
  if(hb){const was=expanded.has(hb.key);expanded.clear();if(!was)expanded.add(hb.key);selected=hb.key;renderDetail();return;}
  expanded.clear();
- let best=null,bd=50;for(const k in headPos){const p=headPos[k],d=Math.hypot(x-p.cx,y-(p.cy+16*K));if(d<bd){bd=d;best=k;}}
+ let best=null,bd=lastPtr==="touch"?Math.max(50,70*K):50;for(const k in headPos){const p=headPos[k],d=Math.hypot(x-p.cx,y-(p.cy+16*K));if(d<bd){bd=d;best=k;}}
  selected=best==null?null:(best==="T"?"T":+best);
  // clicking a student toggles their name, attention bar and inner thoughts
  if(typeof selected==="number"){if(shownInfo.has(selected)){shownInfo.delete(selected);}else shownInfo.add(selected);}
