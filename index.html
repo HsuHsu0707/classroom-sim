@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>AI 教室實驗場</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;background:#eef1f5;color:#222;font-size:14px;overflow:hidden}
+header{background:#2d4a6b;color:#fff;height:42px;padding:0 12px;display:flex;align-items:center;gap:12px}
+header h1{font-size:17px;margin:0;white-space:nowrap}header .stat{font-size:12px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{cursor:pointer;border:1px solid #888;background:#fff;border-radius:5px;padding:4px 9px;font-size:13px;white-space:nowrap}button:disabled{opacity:.4;cursor:default}
+button.pri{background:#2f7d4f;color:#fff;border-color:#2f7d4f}button.fake{background:#7a4fb3;color:#fff;border-color:#7a4fb3}button.sm{padding:1px 6px;font-size:12px}
+main{display:grid;grid-template-columns:320px 1fr 290px;gap:8px;padding:8px;height:calc(100% - 42px)}
+body.nosettings main{grid-template-columns:1fr 290px}body.nosettings #settings{display:none}
+.panel{background:#fff;border-radius:8px;padding:8px;overflow:auto;box-shadow:0 1px 3px #0002;min-height:0}
+.panel h3{margin:4px 0 6px;font-size:14px;border-bottom:1px solid #ddd;padding-bottom:3px}
+label{display:block;font-size:12px;margin-top:5px;color:#444}input,select,textarea{width:100%;font-size:12px;padding:3px;border:1px solid #bbb;border-radius:4px}
+textarea{font-family:monospace;height:140px}.row{display:flex;gap:6px}.row>*{flex:1;min-width:0}
+.card{border:1px solid #cfd6e0;border-radius:7px;padding:5px 6px;margin:6px 0;background:#f8fafc}
+.card .hd{display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px}.card .hd span{flex:1}
+.card .g{display:grid;grid-template-columns:44px 1fr 44px 1fr;gap:3px 4px;align-items:center;margin-top:3px}
+.card .g label{margin:0;font-size:11px;text-align:right}.card .g .w3{grid-column:span 3}
+.card.teacher{background:#fff8e1;border-color:#e3c770}
+#center{display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+#controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+#stage{flex:1;position:relative;min-height:0;background:#cfd8e3;border-radius:8px;overflow:hidden}#room{position:absolute;left:0;top:0;width:100%;height:100%;cursor:pointer}
+#topLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#board{position:absolute;left:8px;top:8px;width:min(250px,30%);background:#24412fee;color:#f3f3e0;border-radius:6px;font:12px sans-serif;z-index:2;box-shadow:0 1px 4px #0004}
+#board .bh{color:#ffe9a8;font-weight:bold;padding:5px 8px 3px}#boardBody{max-height:92px;overflow-y:auto;overscroll-behavior:contain;padding:0 8px 6px;white-space:pre-wrap;line-height:15px;scrollbar-width:thin;scrollbar-color:#9bb #24412f}
+#chart{width:100%;height:84px;background:#fff;border-radius:8px;flex:none}
+#log div{border-bottom:1px dotted #ddd;padding:2px 0;font-size:12px}.t{color:#888}.err{color:#c00}.tch{color:#1a4d8f;font-weight:bold}
+#detail{font-size:12px}#detail .act{border-left:3px solid #6a9;padding-left:4px;margin:3px 0}
+#errbar{display:none;background:#fdd;color:#900;padding:3px 8px;border-radius:6px;font-size:12px}
+details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
+.hint{font-size:11px;color:#777}
+</style></head><body>
+<header><button class="sm" id="btnToggle" title="顯示／隱藏設定">⚙️ 設定</button><h1>🏫 AI 教室實驗場</h1>
+<span class="stat" id="stat">尚未開始</span><span class="stat" id="usage">呼叫 0 次｜詞元 0</span></header>
+<main>
+<div class="panel" id="settings">
+<h3>⚙️ AI 設定</h3>
+<label>AI 服務</label><select id="provider"><option value="openai">OpenAI</option><option value="gemini">Google Gemini（OpenAI 相容）</option><option value="ollama">本地 Ollama</option><option value="custom">自訂（OpenAI 相容端點）</option></select>
+<label>Base URL</label><input id="baseUrl">
+<label>API 金鑰（只存在本機瀏覽器 localStorage）</label><input id="apiKey" type="password" placeholder="sk-... / AIza...（Ollama 可留空）">
+<div class="row"><div><label>老師模型</label><input id="tModel"></div><div><label>學生模型（空白=同老師）</label><input id="sModel"></div></div><div class="hint" id="modelHint"></div>
+<h3 style="margin-top:10px">📚 課程</h3>
+<label>科目／主題</label><input id="topic" value="國中理化：浮力">
+<div class="row"><div><label>課程長度（模擬分鐘）</label><input id="minutes" type="number" value="10" min="1"></div><div><label>每回合分鐘數</label><input id="tick" type="number" value="1" min="1"></div></div>
+<div class="row"><div title="對應 AI 模型的 temperature 參數"><label>個性度</label><input id="temp" type="number" value="0.9" step="0.1" min="0.1" max="2" title="對應 AI 模型的 temperature 參數（0.1～2）"><div class="hint">低：乖乖照規矩；高：行為多變、有個性</div></div>
+<div><label>同時呼叫上限</label><input id="conc" type="number" value="4" min="1" max="11"><div class="hint">一次同時問幾個學生；太高可能被服務擋</div></div></div>
+<h3 style="margin-top:10px">🧑‍🏫 角色設定</h3>
+<label><input type="checkbox" id="randomize" style="width:auto"> 每次開始時自動隨機產生學生</label>
+<div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap"><button id="btnRand">🎲 隨機學生</button><button id="btnAdd">＋ 新增學生</button><button id="btnDefault">↺ 預設名單</button></div>
+<div id="cards"></div>
+<details><summary>進階：用 JSON 匯入／匯出角色</summary>
+<textarea id="personasJson" placeholder="按「匯出成 JSON」或貼上 JSON 後按「從 JSON 匯入」"></textarea>
+<div style="display:flex;gap:4px;margin-top:4px"><button class="sm" id="btnToJson">匯出成 JSON</button><button class="sm" id="btnFromJson">從 JSON 匯入</button></div></details>
+<h3 style="margin-top:10px">📁 紀錄</h3>
+<div style="display:flex;gap:4px;flex-wrap:wrap"><button id="btnExport">⬇️ 匯出紀錄 JSON</button><button id="btnLoad">⬆️ 載入紀錄重播（離線）</button><input type="file" id="file" accept=".json" style="display:none"></div>
+</div>
+<div id="center">
+<div id="controls"><button class="pri" id="btnStart">▶ 開始上課</button><button class="fake" id="btnFake" title="不用金鑰、不用網路的假 AI，用來測試流程">🧪 模擬試跑</button><button id="btnPause" disabled>⏸ 暫停</button><button id="btnStep" disabled>⏭ 單步</button><button id="btnStop" disabled>⏹ 結束</button><button id="btnReplay" style="display:none" title="從頭再播一次載入的紀錄">🔁 重新播放</button>
+<label style="display:inline;margin:0"><input type="checkbox" id="showAll" style="width:auto;vertical-align:middle"> 顯示全部資訊</label> <label style="display:inline;margin:0">速度 <select id="speed" style="width:auto"><option value="4000">慢</option><option value="2000" selected>1x</option><option value="700">快</option><option value="0">最快</option></select></label>
+<span id="mode" style="font-size:12px;color:#555"></span></div>
+<div id="errbar"></div>
+<div id="stage"><canvas id="room"></canvas><canvas id="topLayer"></canvas><div id="board"><div class="bh">🧑‍🏫 黑板 <span id="boardMin"></span></div><div id="boardBody">（空）</div></div></div>
+<canvas id="chart"></canvas>
+</div>
+<div class="panel" style="display:flex;flex-direction:column">
+<h3>🧑‍🎓 角色詳情（點教室裡的人）</h3><div id="detail" style="max-height:45%;overflow:auto">點選任一位學生或老師，可以看人設和行為紀錄。點對話框可以展開完整內容。</div>
+<h3>📜 事件紀錄（全班）</h3><div id="log" style="flex:1;overflow:auto"></div>
+</div></main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const PRESETS={openai:{url:"https://api.openai.com/v1",model:"gpt-4o-mini"},gemini:{url:"https://generativelanguage.googleapis.com/v1beta/openai",model:"gemini-3.1-flash-lite",sModel:"gemini-3.1-flash-lite",conc:1,hint:"免費可用：gemini-3.1-flash-lite（穩定）；老師也可試 gemini-3-flash-preview"},ollama:{url:"http://localhost:11434/v1",model:"llama3.1"},custom:{url:"http://localhost:8787/v1",model:"mock"}};
+const ACTIONS={wait:"⏳",listen:"👂",notes:"📝",ask:"✋",answer:"🙋",chat:"💬",daydream:"🤔",phone:"📱",sleep:"💤",other:"❔"};
+const ACT_ZH={wait:"等同學回話",listen:"聽課",notes:"抄筆記",ask:"舉手發問",answer:"回答",chat:"跟同學聊天",daydream:"發呆",phone:"滑手機",sleep:"睡覺",other:"其他"};
+const T_ICON={lecture:"🗣️",question:"❓",call_on:"👉",discipline:"⚠️",write_board:"✍️",answer:"💡",feedback:"👍",activity:"🧪",patrol:"🚶"};
+const T_ACT_ZH={lecture:"講課",question:"提問",call_on:"點名",discipline:"管秩序",write_board:"寫黑板",answer:"回答問題",feedback:"回應學生",activity:"帶活動",patrol:"下台巡堂"};
+const SPOKEN=new Set(["ask","answer","chat"]);
+const MAX_SEATS=12;
+const DEFAULT_PERSONAS=[
+{name:"陳小明",personality:"活潑好動、愛搞笑",ability:"中等",interests:"籃球、手遊",attention:"短",friends:["林志豪"],seat:0},
+{name:"林志豪",personality:"愛講話、人緣好",ability:"中下",interests:"YouTube、漫畫",attention:"短",friends:["陳小明","王建宏"],seat:3},
+{name:"張雅婷",personality:"認真負責的班長",ability:"優秀",interests:"閱讀、科學",attention:"長",friends:["李佩珊"],seat:1},
+{name:"李佩珊",personality:"害羞文靜",ability:"中上",interests:"畫畫",attention:"中",friends:["張雅婷"],seat:4},
+{name:"王建宏",personality:"愛睡覺、昨晚熬夜",ability:"中等",interests:"電競",attention:"很短",friends:["林志豪"],seat:6},
+{name:"黃思涵",personality:"好奇心強、愛發問",ability:"優秀",interests:"實驗、太空",attention:"長",friends:["吳宗翰"],seat:2},
+{name:"吳宗翰",personality:"冷靜理性、話少",ability:"優秀",interests:"程式、數學",attention:"中",friends:["黃思涵"],seat:5},
+{name:"劉家瑜",personality:"愛追星、容易分心",ability:"中下",interests:"K-pop、IG",attention:"短",friends:["蔡宜君"],seat:7},
+{name:"蔡宜君",personality:"努力但沒自信",ability:"中下",interests:"烘焙",attention:"中",friends:["劉家瑜"],seat:8},
+{name:"鄭凱文",personality:"叛逆、覺得上課無聊",ability:"中等（其實很聰明）",interests:"機車、音樂",attention:"很短",friends:[],seat:10}];
+const DEFAULT_TEACHER={name:"周老師",style:"親切但會管秩序，喜歡用生活例子與提問引導學生",experience:"教學 12 年"};
+const POOL={sur:"陳林黃張李王吳劉蔡楊許鄭謝郭洪曾邱廖賴周".split(""),given:["宇軒","品妍","承恩","子晴","冠廷","語彤","柏翰","欣妤","俊傑","詩涵","彥廷","郁婷","家豪","芷若","睿哲","心怡","宗穎","雨萱","昱辰","佳穎"],
+pers:["活潑好動、愛搞笑","害羞文靜","認真負責","好奇心強、愛發問","叛逆、嫌上課無聊","愛講話、人緣好","冷靜理性、話少","容易緊張、沒自信","愛睡覺、常熬夜","愛現、喜歡搶答","溫和、樂於幫助同學","愛幻想、常神遊"],
+abil:["優秀","中上","中等","中下","落後"],inter:["籃球","手遊","畫畫","K-pop","程式","閱讀","烘焙","動漫","音樂","實驗","足球","攝影","寫小說","電競"],att:["很短","短","中","長"]};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function seatLabel(s){return `第${Math.floor(s/3)+1}排・第${s%3+1}個`;}
+function randomPersonas(n=10){const used=new Set(),ps=[];const seats=shuffle([...Array(MAX_SEATS).keys()]);
+ while(ps.length<n){const nm=pick(POOL.sur)+pick(POOL.given);if(used.has(nm))continue;used.add(nm);
+  let i1=pick(POOL.inter),i2=pick(POOL.inter);ps.push({name:nm,personality:pick(POOL.pers),ability:pick(POOL.abil),interests:i1===i2?i1:i1+"、"+i2,attention:pick(POOL.att),friends:[],seat:seats[ps.length]});}
+ const order=shuffle([...Array(n).keys()]);for(let i=0;i+1<order.length;i+=2){if(Math.random()<.8){ps[order[i]].friends.push(ps[order[i+1]].name);ps[order[i+1]].friends.push(ps[order[i]].name);}}
+ return ps;}
+// ---------- persona form ----------
+let personas=[],teacherP={...DEFAULT_TEACHER};
+function fixSeats(ps){const used=new Set();ps.forEach(p=>{let s=parseInt(p.seat);if(!(s>=0&&s<MAX_SEATS)||used.has(s))s=-1;if(s>=0)used.add(s);p.seat=s;});
+ ps.forEach(p=>{if(p.seat<0){for(let s=0;s<MAX_SEATS;s++)if(!used.has(s)){p.seat=s;used.add(s);break;}}});return ps;}
+function normPersona(p){return {name:String(p.name||"").trim()||"無名",personality:p.personality||"",ability:p.ability||"",interests:p.interests||"",attention:p.attention||"中",
+ friends:Array.isArray(p.friends)?p.friends:String(p.friends||"").split(/[,，、\s]+/).filter(Boolean),seat:p.seat};}
+function renderCards(){const seatOpts=s=>[...Array(MAX_SEATS).keys()].map(i=>`<option value="${i}" ${i==s?"selected":""}>${seatLabel(i)}</option>`).join("");
+ let h=`<div class="card teacher"><div class="hd"><span>👩‍🏫 老師</span></div><div class="g">
+ <label>姓名</label><input data-t="name" value="${esc(teacherP.name)}"><label>資歷</label><input data-t="experience" value="${esc(teacherP.experience)}">
+ <label>風格</label><input class="w3" data-t="style" value="${esc(teacherP.style)}"></div><div class="hint">教案會在開始上課時依主題自動產生。</div></div>`;
+ personas.forEach((p,i)=>{h+=`<div class="card"><div class="hd"><span>🧑‍🎓 學生 ${i+1}</span><button class="sm" data-del="${i}" title="刪除">✕</button></div><div class="g">
+ <label>姓名</label><input data-i="${i}" data-k="name" value="${esc(p.name)}"><label>座位</label><select data-i="${i}" data-k="seat">${seatOpts(p.seat)}</select>
+ <label>個性</label><input class="w3" data-i="${i}" data-k="personality" value="${esc(p.personality)}">
+ <label>程度</label><input data-i="${i}" data-k="ability" value="${esc(p.ability)}"><label>專注力</label><input data-i="${i}" data-k="attention" value="${esc(p.attention)}" list="attList">
+ <label>興趣</label><input class="w3" data-i="${i}" data-k="interests" value="${esc(p.interests)}">
+ <label>好友</label><input class="w3" data-i="${i}" data-k="friends" value="${esc((p.friends||[]).join("、"))}" placeholder="用頓號或逗號分隔"></div></div>`;});
+ $("cards").innerHTML=h+`<datalist id="attList"><option value="很短"><option value="短"><option value="中"><option value="長"></datalist><div class="hint">座位：第1排最靠近黑板，第1～3個由左到右。</div>`;
+ $("btnAdd").disabled=personas.length>=MAX_SEATS;}
+$("cards").addEventListener("input",e=>{const t=e.target;if(t.dataset.t){teacherP[t.dataset.t]=t.value;}else if(t.dataset.k){const p=personas[+t.dataset.i];
+ if(t.dataset.k==="friends")p.friends=t.value.split(/[,，、\s]+/).filter(Boolean);else if(t.dataset.k==="seat"){const s=+t.value,o=personas.find(q=>q!==p&&q.seat===s);if(o)o.seat=p.seat;p.seat=s;renderCards();}else p[t.dataset.k]=t.value;}savePersonas();});
+$("cards").addEventListener("click",e=>{const d=e.target.dataset.del;if(d!=null){if(personas.length<=1)return;personas.splice(+d,1);renderCards();savePersonas();}});
+function savePersonas(){localStorage.setItem("cls_personas2",JSON.stringify({students:personas,teacher:teacherP}));}
+$("btnRand").onclick=()=>{personas=randomPersonas(personas.length||10);renderCards();savePersonas();};
+$("btnDefault").onclick=()=>{personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));teacherP={...DEFAULT_TEACHER};renderCards();savePersonas();};
+$("btnAdd").onclick=()=>{if(personas.length>=MAX_SEATS)return;personas.push(fixSeats([...personas,{...randomPersonas(1)[0],seat:-1}]).pop());renderCards();savePersonas();};
+$("btnToJson").onclick=()=>{$("personasJson").value=JSON.stringify({teacher:teacherP,students:personas},null,1);};
+$("btnFromJson").onclick=()=>{try{let d=JSON.parse($("personasJson").value);const st=Array.isArray(d)?d:d.students;if(!Array.isArray(st)||!st.length)throw new Error("找不到 students 陣列");
+ personas=fixSeats(st.slice(0,MAX_SEATS).map(normPersona));if(d.teacher)teacherP={...DEFAULT_TEACHER,...d.teacher};renderCards();savePersonas();}catch(e){showErr("JSON 匯入失敗："+e.message);}};
+// ---------- settings ----------
+const FIELDS=["provider","baseUrl","tModel","sModel","topic","minutes","tick","temp","conc","speed"];
+function loadSettings(){const s=JSON.parse(localStorage.getItem("cls_settings")||"{}");FIELDS.forEach(f=>{if(s[f]!=null)$(f).value=s[f];});
+ if(!s.baseUrl)applyPreset();$("apiKey").value=localStorage.getItem("cls_apikey")||"";migrateModels();modelHint();$("randomize").checked=!!s.randomize;
+ try{const p=JSON.parse(localStorage.getItem("cls_personas2"));personas=fixSeats(p.students.map(normPersona));teacherP={...DEFAULT_TEACHER,...p.teacher};}catch(e){personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));}
+ renderCards();}
+function saveSettings(){const s={};FIELDS.forEach(f=>s[f]=$(f).value);s.randomize=$("randomize").checked;localStorage.setItem("cls_settings",JSON.stringify(s));localStorage.setItem("cls_apikey",$("apiKey").value);}
+function applyPreset(){const p=PRESETS[$("provider").value];$("baseUrl").value=p.url;$("tModel").value=p.model;$("sModel").value=p.sModel||"";if(p.conc)$("conc").value=p.conc;modelHint();}
+function modelHint(){const p=PRESETS[$("provider").value]||{};$("modelHint").textContent=p.hint||"";}
+// model names that providers have retired → replace saved settings automatically
+const RETIRED={"gemini-2.0-flash":"gemini-3.1-flash-lite","gemini-3.0-flash":"gemini-3.1-flash-lite"};
+function migrateModels(){["tModel","sModel"].forEach(id=>{const v=$(id).value.trim();if(RETIRED[v]){$(id).value=RETIRED[v];saveSettings();}});}
+$("provider").onchange=()=>{applyPreset();saveSettings();};FIELDS.concat(["apiKey","randomize"]).forEach(f=>$(f).addEventListener("change",saveSettings));
+$("btnToggle").onclick=()=>{document.body.classList.toggle("nosettings");};
+// ---------- LLM ----------
+const usage={calls:0,tokens:0,errors:0};
+function showUsage(){$("usage").textContent=`呼叫 ${usage.calls} 次｜詞元 ${usage.tokens}｜錯誤 ${usage.errors}`;}
+function showErr(m){const e=$("errbar");e.style.display="block";e.style.whiteSpace="pre-line";e.textContent="⚠️ "+m;clearTimeout(showErr.t);showErr.t=setTimeout(()=>e.style.display="none",8000);}
+let active=0;const queue=[];
+function limit(fn){return new Promise((res,rej)=>{const run=()=>{active++;fn().then(res,rej).finally(()=>{active--;if(queue.length)queue.shift()();});};
+ if(active<Math.max(1,+$("conc").value||1))run();else queue.push(run);});}
+function extractJSON(t){t=t.replace(/```(json)?/g,"");const a=t.indexOf("{"),b=t.lastIndexOf("}");if(a<0||b<a)throw new Error("回應中找不到 JSON");return JSON.parse(t.slice(a,b+1));}
+function httpHint(status,tx){
+ if(status===404)return "\n💡 模型名稱可能已過期或不存在，請到 Google AI Studio（aistudio.google.com）確認可用的模型名稱；Gemini 免費可用 gemini-3.1-flash-lite";
+ if(status===429)return "\n💡 超過免費額度速率，請把同時呼叫上限調成 1 或稍後再試";
+ if(status===401||status===403)return "\n💡 金鑰錯誤或未啟用";return "";}
+// live-run progress: who is being asked right now, and how many calls of this turn are done
+let PROG=null;
+function showProg(){if(!PROG||!S||S.meta.fake)return;const who=PROG.active.length?`正在問：${PROG.active.slice(0,3).join("、")}${PROG.active.length>3?" 等":""}…`:"播放這一回合…";
+ $("stat").textContent=`⏳ 第 ${PROG.m} / ${S.meta.minutes} 分鐘｜${who}（${Math.min(PROG.done,PROG.total)}/${PROG.total}）`;}
+function progStart(ctx){if(!PROG)return null;const nm=ctx.kind==="plan"?"老師（備課）":ctx.kind==="teacher"?"老師":(ctx.st&&ctx.st.name)||"?";if(ctx.kind==="reply")PROG.total++;PROG.active.push(nm);showProg();return nm;}
+function progEnd(nm){if(!PROG||nm==null)return;const k=PROG.active.indexOf(nm);if(k>=0)PROG.active.splice(k,1);PROG.done++;showProg();}
+async function chat(model,system,user,ctx,tries=3){if(S&&!S.meta.fake){const nm=progStart(ctx);try{return await chatRaw(model,system,user,ctx,tries);}finally{progEnd(nm);}}return chatRaw(model,system,user,ctx,tries);}
+async function chatRaw(model,system,user,ctx,tries=3){let rl429=0;
+ if(S&&S.meta.fake){usage.calls++;showUsage();const r=fakeAI(ctx);await sleep(40+Math.random()*260);return r;}
+ let lastErr;
+ for(let i=0;i<tries;i++){try{return await limit(async()=>{
+  const url=$("baseUrl").value.replace(/\/+$/,"")+"/chat/completions";const key=$("apiKey").value.trim();
+  const headers={"Content-Type":"application/json"};if(key)headers.Authorization="Bearer "+key;
+  const body={model,temperature:+$("temp").value||0.9,messages:[{role:"system",content:system},{role:"user",content:user+(i>0?"\n\n（注意：上次輸出不是合法 JSON。只輸出一個 JSON 物件，不要任何其他文字。）":"")}]};
+  usage.calls++;showUsage();
+  const r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
+  if(!r.ok){const tx=await r.text();const e=new Error(`HTTP ${r.status}：${tx.slice(0,200)}${httpHint(r.status,tx)}`);e.status=r.status;e.retryAfter=+r.headers.get("retry-after")||0;throw e;}
+  const j=await r.json();usage.tokens+=(j.usage&&j.usage.total_tokens)||0;showUsage();
+  return extractJSON(j.choices[0].message.content||"");});}
+  catch(e){lastErr=e;usage.errors++;showUsage();if([401,403,404].includes(e.status))break;
+   if(e.status===429){if(rl429>=6)break;const wait=Math.min(60,e.retryAfter||2*2**rl429)*1000;rl429++;i--;showErr(`超過速率限制，${Math.round(wait/1000)} 秒後自動重試（第 ${rl429} 次）…`);await sleep(wait);continue;}
+   await sleep(500*(i+1));}}
+ throw lastErr;}
+// ---------- built-in fake AI (模擬試跑) ----------
+function wpick(w){let tot=0;for(const k in w)tot+=w[k];let r=Math.random()*tot;for(const k in w){r-=w[k];if(r<=0)return k;}return Object.keys(w)[0];}
+function kwOf(){const t=S.meta.topic;return (t.split(/[:：]/).pop()||t).trim()||t;}
+// ---------- built-in lesson packs for 模擬試跑 (topic-specific for 浮力, structured template for any other topic) ----------
+const SEG_DEF=[["hook","引起動機",0,.12],["concept","概念講解",.12,.45],["example","例子／示範",.45,.65],["interact","提問互動",.65,.78],["practice","練習",.78,.9],["summary","總結",.9,1.01]];
+function lessonPack(topic){const kw=(topic.split(/[:：]/).pop()||topic).trim()||topic;
+ if(/浮力/.test(topic))return {kw,goal:"理解浮力的方向與大小（阿基米德原理），並能用密度判斷物體的浮沉",
+  hook:["大家有沒有想過，一艘幾萬噸重的鋼鐵貨輪，為什麼能浮在海面上？可是一根小小的鐵釘丟進水裡，卻馬上沉下去。今天我們就要來解開這個謎。",
+   "再想想看，在游泳池裡把朋友抱起來，是不是覺得他變輕了？水好像在偷偷幫你往上推。這股往上推的力，就是今天的主角——浮力。"],
+  concept:["物體泡在液體裡的時候，液體會對它施加一個向上的力，叫做「浮力」。浮力的方向永遠是鉛直向上，跟重力剛好相反。不只水，油、鹽水，甚至空氣都會產生浮力。",
+   "那浮力有多大呢？古希臘的阿基米德在洗澡時發現：物體所受的浮力，等於它排開的液體的重量。這就是有名的「阿基米德原理」。排開越多液體，浮力就越大。",
+   "寫成公式就是 B = ρ液 × V排 × g。ρ液是液體的密度，V排是物體泡在液體裡的體積，g 是重力加速度。大家注意：是「液體」的密度，不是物體的密度，這裡最常寫錯。",
+   "物體會浮還是沉，要比較浮力 B 和重量 W：B 大於 W 就上浮，B 等於 W 就漂浮或懸浮，B 小於 W 就下沉。換個角度看，物體密度比液體小就浮，比液體大就沉。",
+   "還有一個重點：完全沉入液體以後，再往下沉，V排 不會再變大，所以浮力不會再增加。浮力跟物體在多深的地方無關，只跟排開了多少液體有關。"],
+  example:["我們回到鐵船。鐵的密度大約是水的 7.9 倍，但船做成中空的碗狀，排開了非常多的水，所以整艘船的平均密度比水小，浮力就足以撐住它。",
+   "再看雞蛋實驗：雞蛋放進清水會沉下去；一直加鹽攪拌，鹽水的密度變大，ρ液 變大浮力也跟著變大，雞蛋就慢慢浮上來了。死海裡人可以躺著看報紙也是這個原因。",
+   "潛水艇也是利用這個原理：把海水灌進水艙，重量變大就下潛；用壓縮空氣把水排出去，重量變小就上浮。浮力其實幾乎沒變，改變的是潛水艇的重量。"],
+  practice:["我們來練習一題：一個體積 200 cm³ 的木塊，有一半泡在水裡，水的密度是 1 g/cm³，請問它受到的浮力是多少公克重？大家先自己在筆記本上算算看。",
+   "我們一起對答案：V排 只算泡在水裡的部分，所以是 100 cm³，乘上水的密度 1 g/cm³，浮力就是 100 公克重。木塊是漂浮的，所以它的重量也是 100 公克重。算對的同學很棒！"],
+  summary:["好，我們來整理今天的重點：第一，浮力方向鉛直向上；第二，浮力等於排開液體的重量，B = ρ液 × V排 × g；第三，浮或沉要比較浮力和重量，也就是比較密度。",
+   "回家作業：觀察家裡有哪些東西會浮、哪些會沉，用今天學的密度和排開液體的觀念想想為什麼，下次上課跟大家分享。今天就上到這裡，下課！"],
+  board:{hook:["浮力：鐵船為什麼會浮？"],concept:["浮力方向：鉛直向上","阿基米德原理：B = 排開液體的重量","B = ρ液 × V排 × g（ρ液！）","B>W 上浮｜B=W 漂浮｜B<W 下沉","完全沒入後：B 不隨深度改變"],
+   example:["鐵船：中空 → 平均密度 < 水","鹽水雞蛋：ρ液↑ → B↑","潛水艇：改變重量，不是浮力"],practice:["例題：V=200 cm³，一半入水，B=?","B = 1 × 100 = 100 gw"],summary:["重點：方向↑、B=排開液重、比密度"]},
+  questions:[{q:"大家想想看，為什麼大船是鐵做的卻不會沉？",a:["因為船是空心的，排開很多水！","船的平均密度比水小"]},{q:"雞蛋放進很濃的鹽水裡會怎樣？為什麼？",a:["會浮起來，因為鹽水密度比較大","浮力變大了！"]},
+   {q:"浮力的方向是往哪裡？",a:["鉛直向上！","往上推的"]},{q:"潛水艇要下潛的時候，水艙要怎麼做？",a:["把水灌進去，讓它變重","灌水！"]},{q:"一塊石頭沉到更深的地方，浮力會變大嗎？",a:["不會，V排一樣","應該…不會吧？"]}]};
+ return {kw,goal:`理解${kw}的定義與核心規律，能舉出生活例子並解題`,
+  hook:[`今天的主題是「${kw}」。先想一想，生活中你在什麼地方看過或用過${kw}？其實它出現的次數比你想像的還多，等一下我們會看到好幾個例子。`,
+   `為什麼要學${kw}？因為很多日常現象和考題都跟它有關。學會之後，你會發現原本覺得理所當然的事情，背後都有道理可以說明。`],
+  concept:[`首先是${kw}的定義。定義是整個單元的地基，大家把課本上的關鍵字圈起來，等一下的內容都會從這裡延伸出去。`,
+   `${kw}有幾個重要的組成要素，每一個要素都會影響最後的結果。我們一個一個看，看懂每一項在做什麼，比死背更重要。`,
+   `接下來是${kw}的核心規律。記規律之前，先弄懂裡面每個符號或名詞代表什麼意思，這樣考試換個說法你也不會被騙。`,
+   `最後要注意常見的誤解：很多同學會把${kw}跟相似的觀念搞混。我把兩者的差別列在黑板上，大家對照著看，把容易錯的地方打個星號。`],
+  example:[`我們用一個生活例子來看${kw}：先想像一個日常情境，再用剛剛的定義和規律一步一步分析，你會發現它完全說得通。`,
+   `再看第二個例子，這次我們把條件改一下。條件改變之後，結果會不會跟著變？變的方向跟剛剛的規律一致嗎？`,
+   `把兩個例子放在一起比較，你會發現${kw}的規律其實很一致：只要抓住關鍵條件，就能預測結果。`],
+  practice:[`我們來練習一題跟${kw}有關的題目，大家先自己在筆記本上想一分鐘，寫下你用到了哪一個規律。`,
+   `好，我們一起對答案。解題的關鍵是先找出題目給的條件，再套用剛剛的規律，最後檢查答案合不合理。做錯的同學把錯在哪一步標出來。`],
+  summary:[`整理今天的重點：第一是${kw}的定義，第二是它的核心規律，第三是常見的誤解。這三件事搞懂，這個單元就掌握七成了。`,
+   `回家把今天的筆記再看一次，找一個生活中跟${kw}有關的例子，下次上課跟大家分享。今天就上到這裡！`],
+  board:{hook:[`主題：${kw}`],concept:[`① ${kw}的定義`,`② 組成要素`,`③ 核心規律`,`④ 常見誤解 ✗`],example:["例 1：生活情境","例 2：條件改變 → 結果?"],practice:["練習題","步驟：找條件 → 套規律 → 檢查"],summary:[`重點：定義、規律、誤解`]},
+  questions:[{q:`誰能用自己的話說說看，${kw}是什麼？`,a:[`${kw}就是…剛剛黑板上那個定義`,"我覺得是跟那幾個要素有關"]},{q:`生活中哪裡可以看到${kw}？`,a:["我知道！像是家裡的…","上次在新聞上有看到"]},
+   {q:"剛剛第二個例子，條件改變後結果為什麼不同？",a:["因為關鍵條件變了","跟那個規律有關吧？"]}]};}
+function fakePlan(){const M=S.meta.minutes,pk=lessonPack(S.meta.topic);S._pack=pk;S._ptr={};
+ const segs=SEG_DEF.map(([key,name,a,b])=>({key,start:Math.round(M*a),end:Math.round(M*b),activity:`${name}：${(pk[key]||pk.questions.map(q=>q.q))[0].slice(0,24)}…`,
+  points:key==="interact"?pk.questions.map(q=>q.q):(pk.board[key]||[])})).filter(s=>s.end>s.start);
+ segs[segs.length-1].end=M+1;return {goal:pk.goal,segments:segs};}
+// teacher's next scripted move: advances through the plan, lecturing most ticks
+function fakeTeacherScript(m){const pk=S._pack||lessonPack(S.meta.topic),seg=((S.plan&&S.plan.segments)||[]).find(s=>m>=s.start&&m<s.end)||{key:"summary"};
+ const key=seg.key||"concept",i=S._ptr[key]||0;S._ptr[key]=i+1;
+ if(key==="interact"){const qi=(S._qi||0);S._qi=qi+1;const q=pk.questions[qi%pk.questions.length];S._curQ=q;
+  if(i%2===1){const cand=S.students.filter(s=>!["sleep"].includes(s.state.action));const t=pick(cand.length?cand:S.students);return {action:"call_on",target:t.name,content:`${t.name}，你來回答看看：${q.q}`};}
+  return {action:"question",content:q.q};}
+ const lines=pk[key]||pk.concept,bl=(pk.board[key]||[]);
+ if(i<lines.length){const b=bl[i];if(key==="practice")return {action:i===0?"write_board":"activity",content:lines[i],board:b||""};
+  // write on the board every other step (two lines at once), lecture from the podium in between
+  if(i%2===0){const nb=[bl[i],bl[i+1]].filter(x=>x&&!S.blackboard.includes(x));if(nb.length)return {action:"write_board",content:lines[i],board:nb.join("\n")};}
+  return {action:"lecture",content:lines[i]};}
+ // ran past the script for this segment: review covered points or check understanding
+ const covered=(S.blackboard||"").split("\n").filter(Boolean);
+ if(Math.random()<.5){const q=pick(pk.questions);S._curQ=q;return {action:"question",content:`我們複習一下：${q.q}`};}
+ return {action:"lecture",content:`我們再回頭看一次黑板上的重點「${pick(covered.length?covered:[pk.kw])}」。這個觀念是後面所有內容的基礎，還不熟的同學現在把它抄進筆記，旁邊寫一句你自己的解釋。`};}
+function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
+ if(ctx.kind==="plan")return fakePlan();
+ if(ctx.kind==="reply"){const B=ctx.st,d=threadDepth(B.name,ctx.from.name);
+  if(B.state.action==="sleep"&&Math.random()<.7)return {action:"sleep",content:"Zzz…（沒聽到）",mood:"想睡",attention:B.state.attention};
+  if(Math.random()<.85)return {action:"chat",target:ctx.from.name,content:fakeReplyLine(ctx.msg,d),mood:"開心",attention:Math.max(20,(B.state.attention??60)-5)};
+  return {action:"listen",content:`先不要理${ctx.from.name}，老師在看…`,mood:"緊張",attention:Math.min(95,(B.state.attention??60)+5)};}
+
+ const studs=S.students,T=S.teacher;
+ if(ctx.kind==="teacher"){const m=ctx.m;
+  // the teacher only reacts to what students are doing RIGHT NOW (the states on screen); otherwise follows the lesson script
+  const bad=studs.filter(s=>["sleep","phone"].includes(s.state.action)),chatters=studs.filter(s=>s.state.action==="chat"),
+   askers=studs.filter(s=>s.state.action==="ask"),answerers=studs.filter(s=>s.state.action==="answer"&&/老師|^$/.test(s.state.target||""));
+  let r;
+  if(answerers.length){const t=pick(answerers);const good=Math.random()<.65;const s=fakeTeacherScript(m);
+   const fb=good?`${t.name}答得很好！${buoy?"重點就是排開的液體越多，浮力越大。":"就是這樣，抓到關鍵條件了。"}`:`很接近了，${t.name}，再想一下「${kwOf()}」的規律。`;
+   r={...s,content:fb+" "+s.content};}
+  else if(askers.length){const q=pick(askers);const s=fakeTeacherScript(m);r={...s,content:`${q.name}問得好！${buoy?"浮力只跟液體密度和排開的體積有關，跟物體多重沒有直接關係，重量是拿來跟浮力比較的。":"關鍵是先看清楚條件，再對照黑板上的規律。"} 好，我們接著看——`+s.content};}
+  else if(bad.length&&Math.random()<.35){const t=pick(bad);const s=fakeTeacherScript(m);r={action:"discipline",target:t.name,board:s.board,content:(t.state.action==="phone"?`${t.name}，手機先收起來，這段等一下會考喔。`:`${t.name}，醒醒，我們講到重點了。`)+" "+s.content};}
+  else if(chatters.length>=3&&Math.random()<.3){const t=pick(chatters);const s=fakeTeacherScript(m);r={action:"discipline",target:t.name,board:s.board,content:`${t.name}，先不要聊天，專心聽這一段。`+s.content};}
+  else{r=fakeTeacherScript(m);if(m-(S._lastPatrol??-99)>=4&&r.action==="activity"&&Math.random()<.5)r.action="patrol";}
+  return {action:r.action,target:r.target||"",content:r.content,board:r.board||"",mood:pick(["平靜","有耐心","開心","認真"])};}
+ // student: reacts to the teacher's CURRENT utterance and to classmates who just talked to them
+ const st=ctx.st,P=st.state,Ts=ctx.Ts,span={"很短":-10,"短":-5,"中":-1,"長":3}[st.attention]??-2;
+ let att=(P.attention??70)+span+(Math.random()*24-12);
+ const toMe=Ts.target===st.name,talkers=talkersOf(st);
+ if(["write_board","question"].includes(Ts.action))att+=6;if(Ts.action==="patrol")att+=4;
+ const it=(st.interests||"").split(/[、,，]/)[0]||"打電動",nb=neighbours(st),fr=(st.friends||[]).filter(f=>nb.includes(f));
+ let a,target="",content="";
+ if(toMe&&Ts.action==="call_on"){a="answer";target="老師";content=S._curQ&&Math.random()<.75?pick(S._curQ.a):pick(buoy?["呃…浮力是往上的？","是因為排開的水比較多嗎？","我…我不知道耶"]:[`呃…是不是跟${kw}有關？`,"我覺得是…不太確定","我不知道…"]);att=Math.max(att,65);}
+ else if(toMe&&Ts.action==="discipline"){att=Math.max(att,70+Math.random()*15);
+  if(P.action==="sleep"){a="listen";content="啊…對不起，我醒了！";}else if(P.action==="phone"){a="notes";content="好啦，收起來了…";}else{a="listen";content="喔…好。";}}
+ else if(toMe&&["feedback","answer"].includes(Ts.action)){a=pick(["listen","notes"]);content=pick(["原來是這樣！","耶，老師說我答得不錯","懂了，抄下來"]);att+=10;}
+ else if(S._responders&&S._responders.has(st.name)&&Ts.action==="question"){a="answer";target="老師";content=S._curQ&&Math.random()<.8?pick(S._curQ.a):pick(buoy?["因為船排開的水很多！","雞蛋會浮起來！","浮力是往上的！"]:[`我覺得跟${kw}的定義有關！`,"是不是因為…這樣？"]);}
+ else if(talkers.length&&Math.random()<.85*Math.pow(.55,threadDepth(st.name,talkers[0].name))){const o=talkers[0];a="chat";target=o.name;content=fakeReplyLine(msgOf(o),threadDepth(st.name,o.name));}
+ else{att=Math.max(3,Math.min(98,att));const smart=/優秀|中上/.test(st.ability)?1.5:1;
+  const w=att>=75?{listen:4,notes:3*smart,ask:.35*smart,daydream:.3}:att>=50?{listen:3,notes:2*smart,chat:.8,daydream:1.2,ask:.2*smart}:att>=30?{chat:1.4,daydream:2,phone:2,listen:1.2,notes:.6}:{sleep:3,phone:3,daydream:1,chat:1};
+  if(Ts.action==="question")w.ask=(w.ask||0)+.6*smart;
+  if(!nb.length)delete w.chat;a=wpick(w);
+  const L={listen:["原來如此","嗯…有點懂了",`${kw}好像沒那麼難`,"老師講得好快"],notes:[`「${(S.blackboard||kw).split("\n").pop()}」…先抄下來`,`${kw}…先抄下來`,"這個要考，畫重點","字寫歪了，算了","用螢光筆標起來"],
+   ask:buoy?["老師，那鐵塊為什麼會沉？","老師，浮力跟重量有什麼關係？","可以再講一次公式嗎？"]:[`老師，${kw}要怎麼算？`,"老師，這個為什麼會這樣？","可以再講一次嗎？"],
+   chat:[`欸，你最近有在看${it}嗎？`,"等等下課要不要一起吃飯？","你聽得懂嗎？","好無聊喔","你昨天有看那個影片嗎？","借我橡皮擦"],
+   daydream:[`好想${it}…`,"午餐吃什麼…","窗外的雲好像棉花糖","還有幾分鐘下課…"],phone:["看一下 IG 就好…",`${it}的消息更新了！`,"老師應該沒看到吧"],sleep:["Zzz…","再五分鐘就好…","好睏…"]};
+  content=pick(L[a]);if(a==="chat")target=fr.length?pick(fr):pick(nb);if(a==="ask")target="老師";}
+ att=Math.max(3,Math.min(98,att));if(a==="sleep")att=Math.min(att,15);if(a==="phone")att=Math.min(att,35);
+ const mood={listen:"普通",notes:"認真",ask:"好奇",answer:"緊張",chat:"開心",daydream:"放空",phone:"偷偷的",sleep:"想睡"}[a];
+ return {action:a,target,content,mood,attention:Math.round(att)};}
+// ---------- simulation ----------
+let S=null,running=false,paused=false,stepReq=false,replay=null,selected=null;
+function seatXZ(seat){return {x:245+Math.floor(seat/3)*155,z:110+(seat%3)*190};}
+function newState(fake){
+ if($("randomize").checked){personas=randomPersonas(personas.length||10);renderCards();savePersonas();}
+ const ps=fixSeats(personas.map(p=>normPersona({...p})));
+ return {meta:{version:2,created:new Date().toISOString(),topic:$("topic").value,minutes:Math.max(1,+$("minutes").value||10),tick:Math.max(1,+$("tick").value||1),fake:!!fake,
+  model:fake?{teacher:"內建假 AI",student:"內建假 AI"}:{teacher:$("tModel").value,student:$("sModel").value||$("tModel").value},provider:fake?"fake":$("provider").value},
+ teacher:{...teacherP,memory:[],state:{action:"lecture",target:"",content:"",mood:"平靜"},log:[]},plan:null,blackboard:"",
+ students:ps.map(p=>({...p,memory:[],state:{action:"listen",target:"",content:"",mood:"普通",attention:70},log:[]})),
+ frames:[],attention:[],events:[],minute:0};}
+function addEvent(min,who,text,cls){const ev={min,who,text,cls:cls||""};S.events.push(ev);renderEvent(ev);}
+function renderEvent(ev){const d=document.createElement("div");d.innerHTML=`<span class="t">[${ev.min}分]</span> <span class="${ev.cls}">${esc(ev.who)}</span>：${esc(ev.text)}`;$("log").prepend(d);}
+function neighbours(st){const a=seatXZ(st.seat);return S.students.filter(o=>{if(o===st)return false;const b=seatXZ(o.seat);return Math.abs(a.x-b.x)<=155&&Math.abs(a.z-b.z)<=190;}).map(o=>o.name);}
+function remember(agent,text){agent.memory.push(text);if(agent.memory.length>8)agent.memory.shift();}
+async function makePlan(){
+ const sys="你是一位台灣國中老師，請用繁體中文，只輸出 JSON。";
+ const u=`請為「${S.meta.topic}」設計一堂 ${S.meta.minutes} 分鐘、內容紮實的國中課程教案。段落依序為：引起動機、概念講解、例子／示範、提問互動、練習、總結（可依時間調整長短）。每個段落列出 2～5 個具體要講的重點 points（要有真正的知識內容、公式、數字或生活例子，不要空泛），以及要寫在黑板上的字 board。輸出格式：{"goal":"學習目標","segments":[{"start":0,"end":2,"activity":"段落名稱：做什麼","points":["具體重點1","具體重點2"],"board":["黑板字1"]}]}，segments 要連續涵蓋 0 到 ${S.meta.minutes} 分鐘。`;
+ try{S.plan=await chat(S.meta.model.teacher,sys,u,{kind:"plan"});if(!Array.isArray(S.plan.segments))S.plan.segments=[];}
+ catch(e){showErr("教案產生失敗，改用簡易教案："+e.message);S.plan={goal:S.meta.topic,segments:[{start:0,end:S.meta.minutes,activity:"講解並提問"}]};}
+ addEvent(0,S.teacher.name,"教案目標："+(S.plan.goal||""),"tch");}
+function curSegment(m){const sg=((S.plan&&S.plan.segments)||[]).find(s=>m>=s.start&&m<s.end);return sg?sg.activity:"總結與複習";}
+function classSnapshot(){return S.students.map(s=>`${s.name}(${seatLabel(s.seat)}):${ACT_ZH[s.state.action]||s.state.action}${s.state.content?"「"+s.state.content+"」":""}`).join("；");}
+const MISBEHAVE=new Set(["sleep","phone","chat"]);
+const DISC_LINE={sleep:n=>`${n}，醒醒，上課了喔。`,phone:n=>`${n}，手機收起來！`,chat:n=>`${n}，先不要聊天，專心一點。`};
+// make the teacher's move consistent with what students are ACTUALLY doing right now
+function validateTeacher(r,m){const studs=S.students;let a=T_ACT_ZH[r.action]?r.action:"lecture";let target=r.target||"",content=r.content||"";
+ const find=n=>studs.find(s=>s.name===n);
+ if(a==="discipline"){const t=find(target);if(!t||!MISBEHAVE.has(t.state.action)){const bad=studs.filter(s=>MISBEHAVE.has(s.state.action));
+   if(bad.length){const b=pick(bad);target=b.name;content=DISC_LINE[b.state.action](b.name);}else{a="lecture";target="";content="很好，大家都很專心，我們繼續。";}}}
+ else if(a==="call_on"){if(!find(target)){const t=pick(studs);target=t.name;content=`${t.name}，你來回答看看。`;}}
+ else if(a==="feedback"||a==="answer"){if(target&&!find(target))target="";}
+ else if(a==="patrol"){if(m-(S._lastPatrol??-99)<3){a="lecture";content=content&&!/走|巡|下去/.test(content)?content:"大家看這邊。";}else S._lastPatrol=m;}
+ else target="";
+ // a student who just answered/asked must get a response before the teacher moves on
+ const ans=studs.filter(s=>s.state.action==="answer"),ask=studs.filter(s=>s.state.action==="ask");
+ if(ans.length&&!["feedback","answer","discipline"].includes(a)&&!content.includes(ans[0].name)){const t=ans[0];a="feedback";target=t.name;content=`${t.name}，謝謝你的回答。`+content;}
+ else if(!S.meta.fake&&ask.length&&!["feedback","answer","discipline"].includes(a)&&!ask.some(s=>content.includes(s.name))){const t=ask[0];content=`${t.name}的問題很好，我等一下會回答。`+content;}
+ return {action:a,target,content,board:r.board||"",mood:r.mood||""};}
+async function teacherTurn(m){const T=S.teacher;
+ const sys=`你是${T.name}，台灣國中老師。風格：${T.style}。你正在教「${S.meta.topic}」。請用繁體中文，只輸出一個 JSON 物件。`;
+ const said=S.students.filter(s=>["ask","answer"].includes(s.state.action)&&s.state.content).map(s=>`${s.name}${ACT_ZH[s.state.action]}：「${s.state.content}」`).join("；");
+ const bad=S.students.filter(s=>MISBEHAVE.has(s.state.action)).map(s=>`${s.name}(${ACT_ZH[s.state.action]})`).join("、");
+ const u=`現在是第 ${m} 分鐘（共 ${S.meta.minutes} 分鐘）。教案目標：${S.plan.goal}。這段該做：${curSegment(m)}。
+本段要講的重點：${(((S.plan.segments||[]).find(s=>m>=s.start&&m<s.end)||{}).points||[]).join("；")||"（自行決定）"}
+已經講過的內容：${(S.covered||[]).join("；")||"（還沒）"}
+黑板目前內容：${S.blackboard||"（空）"}
+學生「現在」的狀態：${classSnapshot()}
+剛剛對你說話的學生：${said||"無"}
+目前不專心的學生：${bad||"無"}
+你最近記得的事：${T.memory.join(" / ")||"無"}
+規則：大部分回合要「講課」，content 必須是 2～4 句有實質知識內容的話（定義、原理、公式、數字、生活例子、解題步驟），依教案順序推進到下一個還沒講過的重點，不要重複已講過的內容；需要時用 write_board 把重點寫上黑板。discipline 只能針對「目前不專心的學生」名單裡的人；有學生剛回答就用 feedback 回應他，有學生發問就用 answer 回答他；大部分時間待在講台，巡堂(patrol)偶爾才做。
+請決定這一分鐘你要做什麼。輸出：{"action":"lecture|question|call_on|discipline|write_board|answer|feedback|activity|patrol","target":"對象學生姓名，沒有就空字串","content":"你說的話（2-4 句，有實質內容）","board":"要寫在黑板上的字，不寫就空字串","covered":"這回合講完的重點（簡短）","mood":"心情"}`;
+ const raw=await chat(S.meta.model.teacher,sys,u,{kind:"teacher",m});const r=validateTeacher(raw,m);if(raw.covered)S.covered=(S.covered||[]).concat(String(raw.covered)).slice(-12);
+ if(r.action==="question"&&S.meta.fake)S._responders=new Set(S.students.filter(s=>!["sleep","phone"].includes(s.state.action)).sort((x,y)=>(y.state.attention+Math.random()*40)-(x.state.attention+Math.random()*40)).slice(0,1+(Math.random()<.4?1:0)).map(s=>s.name));
+ if(r.action==="patrol")S._lastPatrol=m;
+ T.state={action:r.action,target:r.target,content:r.content,mood:r.mood};
+ if(r.board){S.blackboard=(S.blackboard+"\n"+r.board).trim().split("\n").slice(-6).join("\n");}
+ T.log.push({min:m,...T.state});remember(T,`第${m}分 我${T_ACT_ZH[T.state.action]}${T.state.target?"→"+T.state.target:""}：${T.state.content}`);
+ addEvent(m,T.name,`【${T_ACT_ZH[T.state.action]}${T.state.target?"→"+T.state.target:""}】${T.state.content}`,"tch");}
+async function studentTurn(st,m,Tstate){
+ const sys=`你在扮演台灣國中生「${st.name}」。個性：${st.personality}；程度：${st.ability}；興趣：${st.interests}；專注力：${st.attention}；好朋友：${(st.friends||[]).join("、")||"無"}。你要像真實的國中生一樣自主行動，不一定乖乖聽課，但要對老師和同學「剛剛」說的話有合理反應。請用繁體中文、口語，只輸出一個 JSON 物件。`;
+ const talkers=talkersOf(st);
+ const others=S.students.filter(o=>o!==st).map(o=>`${o.name}:${ACT_ZH[o.state.action]||o.state.action}`).join("；");
+ const toMe=Tstate.target===st.name;
+ const hint=toMe&&Tstate.action==="call_on"?"⚠️ 老師點你回答問題，你必須回答老師（action 用 answer，target 填「老師」）。"
+  :toMe&&Tstate.action==="discipline"?`⚠️ 老師正在糾正你（你剛剛在${ACT_ZH[st.state.action]}），請對此做出反應（例如停下來、道歉、或不情願地照做）。`
+  :toMe&&["feedback","answer"].includes(Tstate.action)?"老師正在回應你剛剛說的話。"
+  :Tstate.action==="question"?"老師剛問全班一個問題，你可以舉手發問(ask)、直接回答(answer, target 填「老師」)，或不理他。":"";
+ const u=`第 ${m} 分鐘，上「${S.meta.topic}」。
+老師「現在」正在${T_ACT_ZH[Tstate.action]||""}${Tstate.target?"（對象："+Tstate.target+"）":""}：「${Tstate.content}」
+黑板：${S.blackboard||"（空）"}
+你旁邊的同學：${neighbours(st).join("、")||"無"}
+剛剛跟你說話的同學：${talkers.map(o=>`${o.name}說「${msgOf(o)}」${o.state.action==="wait"?"（他還在等你回）":""}`).join("；")||"無"}（要回他的話，action 用 chat、target 填他的名字；聊完了也可以不回）
+全班動態：${others}
+你現在正在：${ACT_ZH[st.state.action]||st.state.action}，專注度 ${st.state.attention}
+你記得的事：${st.memory.join(" / ")||"無"}
+${hint}
+決定接下來這一分鐘你做什麼。content：ask/answer/chat 時是你說出口的話，其他動作時是你心裡的想法。輸出：{"action":"listen|notes|ask|answer|chat|daydream|phone|sleep","target":"說話對象(老師或同學姓名，沒有就空字串)","content":"一句話","mood":"心情（兩三字）","attention":0到100的整數}`;
+ return await chat(S.meta.model.student,sys,u,{kind:"student",st,m,Ts:Tstate});}
+// keep student output consistent: answers go to the teacher, chats go to a real classmate (prefer whoever just talked to them)
+function validateStudent(st,r,Ts){let a=ACTIONS[r.action]?r.action:"listen";let target=r.target||"";
+ const names=S.students.filter(o=>o!==st).map(o=>o.name);
+ if(Ts.target===st.name&&Ts.action==="call_on"&&a!=="answer"){a="answer";target="老師";}
+ if(a==="answer"&&!["call_on","question"].includes(Ts.action)&&Ts.target!==st.name)a=r.content?"ask":"listen";
+ if(a==="answer"||a==="ask")target="老師";
+ if(a==="chat"&&!names.includes(target)){const talkers=talkersOf(st);const nb=neighbours(st);
+  target=talkers.length?talkers[0].name:nb.length?pick(nb):"";if(!target)a="daydream";}
+ if(!["chat","ask","answer"].includes(a))target="";
+ return {...r,action:a,target};}
+function applyStudent(st,r,m){const T=S.teacher;const a=r.action;
+ st.state={action:a,target:r.target||"",content:r.content||"",mood:r.mood||"",attention:Math.max(0,Math.min(100,parseInt(r.attention)||0)),initiated:!!r.initiated,isReply:!!r.isReply,pendingMsg:r.pendingMsg||""};
+ st.log.push({min:m,...st.state});remember(st,`第${m}分 我${ACT_ZH[a]}${st.state.target?"→"+st.state.target:""}${st.state.content?"：「"+st.state.content+"」":""}`);
+ if(SPOKEN.has(a)&&st.state.content){addEvent(m,st.name,`【${ACT_ZH[a]}${st.state.target?"→"+st.state.target:""}】${st.state.content}`);
+  const tgt=S.students.find(o=>o.name===st.state.target);if(tgt)remember(tgt,`第${m}分 ${st.name}對我說：「${st.state.content}」`);
+  if(a!=="chat")remember(T,`第${m}分 ${st.name}${ACT_ZH[a]}：「${st.state.content}」`);}
+ else if(["phone","sleep"].includes(a))addEvent(m,st.name,`（${ACT_ZH[a]}）${st.state.content}`);}
+function snapshotFrame(m,order,seq){const att=Math.round(S.students.reduce((s,x)=>s+(x.state.attention||0),0)/S.students.length);S.attention.push({min:m,value:att});
+ S.frames.push({min:m,blackboard:S.blackboard,teacher:{...S.teacher.state},students:S.students.map(s=>({...s.state})),order,seq});}
+function tickMs(){return +$("speed").value||0;}
+// ---------- teacher speaks one sentence at a time ----------
+let SPEECH=null;
+function splitSentences(text){const raw=(String(text||"").match(/[^。！？!?；;]+[。！？!?；;」』]*/g)||[]).map(s=>s.trim()).filter(Boolean);const out=[];
+ raw.forEach(s=>{if(out.length&&(out[out.length-1].length<8||s.length<5))out[out.length-1]+=s;else out.push(s);});return out.length?out:[String(text||"")];}
+// readable time per sentence (about 5 characters per second at 1x), scaled by the speed setting
+function sentenceMs(s){const d=+$("speed").value;if(!d)return 0;return Math.max(1200,Math.min(4500,s.length*150))*(d/2000);}
+function startSpeech(text){const list=splitSentences(text);SPEECH={list,durs:list.map(sentenceMs),el:0};return SPEECH.durs.reduce((a,b)=>a+b,0);}
+function speechIdx(){if(!SPEECH)return -1;let acc=0;for(let i=0;i<SPEECH.list.length;i++){acc+=SPEECH.durs[i];if(SPEECH.el<acc)return i;}return SPEECH.list.length-1;}
+// ---------- conversation threads ----------
+// who is currently talking to st (a fresh chat, or someone still waiting for st's reply)
+function talkersOf(st){const sOf=o=>PREV?PREV[S.students.indexOf(o)]||o.state:o.state;return S.students.filter(o=>o!==st&&["chat","wait"].includes(sOf(o).action)&&sOf(o).target===st.name);}
+function msgOf(o){return o.state.action==="wait"?(o.state.pendingMsg||""):o.state.content;}
+async function replyTurn(B,A,msg,m,Ts){
+ const sys=`你在扮演台灣國中生「${B.name}」。個性：${B.personality}；興趣：${B.interests}；好朋友：${(B.friends||[]).join("、")||"無"}。請用繁體中文、口語，只輸出一個 JSON 物件。`;
+ const u=`第 ${m} 分鐘，上「${S.meta.topic}」。老師現在正在${T_ACT_ZH[Ts.action]||""}：「${Ts.content}」。
+你現在正在：${ACT_ZH[B.state.action]||B.state.action}。
+同學 ${A.name} 剛剛小聲跟你說：「${msg}」，他正在等你回答。
+你可以回他（action 用 chat、target 填「${A.name}」、content 是你回的一句話），或不理他（action 用 listen/notes/sleep 等，content 寫你心裡的想法）。
+輸出：{"action":"chat|listen|notes|daydream|phone|sleep","target":"","content":"一句話","mood":"心情","attention":0到100的整數}`;
+ const r=await chat(S.meta.model.student,sys,u,{kind:"reply",st:B,from:A,msg,m,Ts});
+ let a=ACTIONS[r.action]?r.action:"listen";if(["ask","answer","wait"].includes(a))a="listen";
+ return {...r,action:a,target:a==="chat"?A.name:"",isReply:true};}
+// natural replies for the fake engine, aware of what was said and how long the thread is
+function fakeReplyLine(msg,depth){
+ if(depth>=2)return pick(["好，下課再說！","嗯嗯，先上課","OK 掰","哈哈好啦"]);
+ if(/吃|福利社|飯|午餐/.test(msg))return pick(["好啊，去福利社！","好啊，我要吃雞排","不行耶，我今天有帶便當"]);
+ if(/要不要|一起/.test(msg))return pick(["好啊！","可以啊，幾點？","不要啦，我要補習"]);
+ if(/借/.test(msg))return pick(["喏，給你","我也沒有耶","用完要還喔"]);
+ if(/聽得懂|懂嗎/.test(msg))return pick(["不太懂…等等問老師","懂啊，就是排開的水","完全聽不懂哈哈"]);
+ if(/好啊|可以|好喔/.test(msg))return pick(["那就這樣說定了！","讚，下課見","好，記得叫我"]);
+ if(/[？?]/.test(msg))return pick(["真的假的？","我也不知道耶","對啊！","有啊，超好笑"]);
+ return pick(["哈哈對啊","噓，老師在看啦","真的","嗯嗯"]);}
+function threadDepth(a,b){S._thr=S._thr||{};return S._thr[[a,b].sort().join("|")]||0;}
+function bumpThread(a,b){S._thr=S._thr||{};const k=[a,b].sort().join("|");S._thr[k]=(S._thr[k]||0)+1;}
+// ---------- continuous timeline: every student moves on their own schedule (no "everyone at once" wave) ----------
+// CLOCK only advances while playing (or while a single step runs), so every delay below respects pause.
+let CLOCK=0,clockReal=performance.now(),stepping=false,PREV=null;
+function clockNow(){const n=performance.now();if(!paused||stepping)CLOCK+=n-clockReal;clockReal=n;return CLOCK;}
+async function waitClock(due,abort){while(clockNow()<due&&!abort())await sleep(25);}
+// each student gets their own slot of the turn, jittered and shuffled, after a short lead so the teacher speaks first
+function spreadOffsets(n,span){const lead=span*.1,w=span-lead,slot=w/Math.max(1,n);return shuffle([...Array(n)].map((_,j)=>lead+(j+.1+Math.random()*.8)*slot));}
+// how long a spoken bubble stays up: by length, with a little personal variation, scaled by the speed setting
+function bubbleDur(text){const d=tickMs();const base=Math.max(1600,Math.min(5000,String(text||"").length*140))*(.85+Math.random()*.4);return d?base*(d/2000):1200;}
+function markShown(st){st._shownAt=clockNow();st._dur=bubbleDur(st.state.content);}
+async function runStudentTimeline(m,Ts,span){
+ const studs=S.students,n=studs.length,t0=clockNow(),idx=nm=>studs.findIndex(s=>s.name===nm),abort=()=>!running;
+ PREV=studs.map(s=>s.state);
+ const off=spreadOffsets(n,span),seq=[],revealed=new Array(n).fill(null),locked=new Set(),handled=new Set(),jobs=[];
+ const beat=()=>span?span*(.06+Math.random()*.08):0;
+ // someone who started a chat last turn and got no answer keeps waiting — shown right away, before anyone can reply
+ const waiters={};studs.forEach((st,i)=>{const ps=st.state;if(ps.action==="chat"&&ps.initiated&&!ps.isReply){const B=studs[idx(ps.target)];
+  if(B&&!(B.state.action==="chat"&&B.state.target===st.name)){waiters[i]={action:"wait",target:B.name,content:`等${B.name}回我…`,mood:"期待",attention:ps.attention,pendingMsg:ps.content};off[i]=0;locked.add(i);}}});
+ const show=(i,r)=>{applyStudent(studs[i],r,m);markShown(studs[i]);seq.push({i,f:span?+((clockNow()-t0)/span).toFixed(3):0,state:{...studs[i].state}});};
+ // pair a revealed chat starter with their partner once the partner has made their own move; the reply follows a beat later
+ const tryPairs=()=>revealed.forEach((r,a)=>{if(!r||handled.has(a)||r.action!=="chat"||!r.initiated)return;const b=idx(r.target);
+  if(b<0||waiters[b]){handled.add(a);return;}if(!revealed[b])return;handled.add(a);
+  const rb=revealed[b];if(locked.has(b)||(rb.action==="chat"&&rb.initiated))return;// partner busy → the starter waits next turn
+  locked.add(a);locked.add(b);bumpThread(studs[a].name,studs[b].name);const ta=clockNow();
+  jobs.push(replyTurn(studs[b],studs[a],r.content,m,Ts).then(async r2=>{await waitClock(Math.max(clockNow(),ta+beat()),abort);if(!running)return;
+   r2.isReply=true;revealed[b]=r2;show(b,r2);}).catch(e=>showErr(studs[b].name+" 回話失敗："+e.message)));});
+ const reveal=(i,r)=>{const st=studs[i];
+  if(r.action==="chat"){const ai=idx(r.target),ra=revealed[ai];
+   r.isReply=talkersOf(st).some(o=>o.name===r.target)||!!(ra&&ra.action==="chat"&&ra.target===st.name&&ra.initiated);r.initiated=!r.isReply;
+   if(r.isReply){bumpThread(st.name,r.target);locked.add(i);locked.add(ai);handled.add(ai);}}
+  revealed[i]=r;show(i,r);tryPairs();};
+ // every student's result shows up as soon as their own call returns (and their slot has come), not when the whole class is done
+ await Promise.all(studs.map((st,i)=>{const p=waiters[i]?Promise.resolve(waiters[i]):studentTurn(st,m,Ts).then(r=>validateStudent(st,r,Ts));
+  return p.catch(e=>{showErr(st.name+" 回合失敗："+e.message);addEvent(m,"系統",st.name+" 回合失敗（保持原狀）","err");return null;})
+   .then(async r=>{await waitClock(t0+off[i],abort);if(r&&running)reveal(i,r);});}));
+ while(jobs.length){const j=jobs.splice(0);await Promise.all(j);}
+ await waitClock(t0+span,abort);PREV=null;
+ const last={};seq.forEach((e,k)=>last[e.i]=k);
+ return {seq,order:Object.keys(last).map(Number).sort((a,b)=>last[a]-last[b])};}
+async function runSim(fake){lastReplay=null;saveSettings();$("log").innerHTML="";$("errbar").style.display="none";
+ try{S=newState(fake);}catch(e){showErr(e.message);return;}
+ usage.calls=usage.tokens=usage.errors=0;showUsage();
+ replay=null;running=true;paused=false;selected=null;expanded.clear();shownInfo.clear();resetAnim();setButtons();document.body.classList.add("nosettings");
+ $("mode").textContent=fake?"🧪 模擬試跑中（內建假 AI，不連網）":"🔴 AI 即時模擬中";
+ $("stat").textContent="產生教案中…";PROG=fake?null:{m:0,done:0,total:1,active:[]};await makePlan();
+ for(let m=0;m<S.meta.minutes&&running;m+=S.meta.tick){S.minute=m;S._responders=null;
+  while(paused&&!stepReq&&running)await sleep(100);stepping=stepReq;stepReq=false;if(!running)break;
+  const D=tickMs();
+  $("stat").textContent=`第 ${m} / ${S.meta.minutes} 分鐘：老師行動中…`;if(!fake)PROG={m,done:0,total:1+S.students.length,active:[]};
+  try{await teacherTurn(m);}catch(e){showErr("老師回合失敗："+e.message);addEvent(m,"系統","老師回合失敗："+e.message,"err");}
+  teacherGo(S.teacher.state);const talk=startSpeech(S.teacher.state.content);
+  $("stat").textContent=`第 ${m} / ${S.meta.minutes} 分鐘：學生反應中…`;
+  const Ts={...S.teacher.state};
+  const span=D?Math.max(D*.85,talk-D*.1):0;// stretch the turn so every sentence can be read; students react in between
+  const tl=await runStudentTimeline(m,Ts,span);
+  snapshotFrame(m,tl.order,tl.seq);drawChart();renderDetail();stepping=false;}
+ finish();}
+function finish(){PROG=null;running=false;paused=false;setButtons();if(S){S.meta.usage={...usage};$("stat").textContent=`下課！共 ${S.frames.length} 回合`;$("mode").textContent=S.frames.length?"✅ 已完成，可匯出紀錄":"";}window.__runDone=true;}
+function setButtons(){const busy=running||!!replay;$("btnReplay").style.display=lastReplay?"":"none";$("btnReplay").disabled=running;["btnStart","btnFake","btnLoad"].forEach(b=>$(b).disabled=busy);["btnPause","btnStep","btnStop"].forEach(b=>$(b).disabled=!busy);$("btnPause").textContent=paused?"▶ 繼續":"⏸ 暫停";}
+$("btnStart").onclick=()=>runSim(false);
+$("btnFake").onclick=()=>runSim(true);
+$("btnPause").onclick=()=>{paused=!paused;setButtons();};
+$("btnStep").onclick=()=>{paused=true;stepReq=true;setButtons();};
+$("btnStop").onclick=()=>{running=false;if(replay)replay.stop=true;};
+// ---------- export / replay ----------
+$("btnExport").onclick=()=>{if(!S||!S.frames.length)return showErr("目前沒有可匯出的紀錄");
+ const data={meta:S.meta,plan:S.plan,teacher:S.teacher,students:S.students,frames:S.frames,attention:S.attention,events:S.events};
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));
+ a.download=`classroom_${String(S.meta.topic).replace(/[\\/:*?"<>|：]/g,"_")}_${Date.now()}.json`;a.click();};
+$("btnLoad").onclick=()=>$("file").click();
+let lastReplay=null,replayP=null;
+$("file").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(replay){replay.stop=true;await replayP;}lastReplay=data;replayP=startReplay(data);await replayP;}catch(err){showErr("無法讀取紀錄："+err.message);replay=null;setButtons();}e.target.value="";};
+// restart the loaded log from the beginning (works mid-replay and after it ends)
+$("btnReplay").onclick=async()=>{if(!lastReplay||running)return;if(replay){replay.stop=true;await replayP;}replayP=startReplay(lastReplay).catch(err=>{showErr("重播失敗："+err.message);replay=null;setButtons();});};
+async function startReplay(data){if(!data.frames||!data.students)throw new Error("不是本實驗場匯出的紀錄檔");
+ const studs=fixSeats(data.students.map(s=>({...s,log:s.log||[],memory:[]})));
+ S={...data,meta:{...data.meta},teacher:{...data.teacher,log:data.teacher.log||[]},students:studs,attention:[],events:[],blackboard:"",minute:0};
+ S.teacher.state={action:"lecture",target:"",content:""};studs.forEach(s=>s.state={action:"listen",content:"",attention:70});
+ replay={stop:false};paused=false;selected=null;expanded.clear();resetAnim();setButtons();document.body.classList.add("nosettings");
+ $("log").innerHTML="";$("mode").textContent="🔁 重播模式（離線）";$("topic").value=data.meta.topic;
+ const evs=data.events||[],sNames=new Set(studs.map(s=>s.name));
+ for(let i=0;i<data.frames.length&&!replay.stop;i++){const fr=data.frames[i];
+  while(paused&&!stepReq&&!replay.stop)await sleep(100);stepping=stepReq;stepReq=false;
+  const D=tickMs()||60;
+  S.minute=fr.min;S.blackboard=fr.blackboard||"";S.teacher.state=fr.teacher;teacherGo(fr.teacher);const talk=startSpeech(fr.teacher.content);const span=Math.max(D*.85,talk-D*.1);
+  const mine=evs.filter(ev=>ev.min===fr.min);mine.filter(ev=>!sNames.has(ev.who)).forEach(ev=>{S.events.push(ev);renderEvent(ev);});
+  $("stat").textContent=`重播：第 ${fr.min} / ${data.meta.minutes} 分鐘`;
+  let seq=fr.seq;
+  if(!seq){const ks=(fr.order||shuffle(fr.students.map((_,k)=>k))).filter(k=>S.students[k]&&fr.students[k]);const off=spreadOffsets(ks.length,1).sort((a,b)=>a-b);seq=ks.map((k,j)=>({i:k,f:off[j],state:fr.students[k]}));}
+  const evq={};mine.filter(ev=>sNames.has(ev.who)).forEach(ev=>(evq[ev.who]=evq[ev.who]||[]).push(ev));const t0=clockNow(),stop=()=>replay.stop;
+  for(const e of seq){await waitClock(t0+e.f*span,stop);if(replay.stop)break;const st=S.students[e.i];if(!st)continue;st.state={...e.state};markShown(st);
+   if((SPOKEN.has(st.state.action)&&st.state.content)||["phone","sleep"].includes(st.state.action)){const ev=(evq[st.name]||[]).shift();if(ev){S.events.push(ev);renderEvent(ev);}}}
+  Object.values(evq).flat().forEach(ev=>{S.events.push(ev);renderEvent(ev);});
+  await waitClock(t0+span,stop);stepping=false;
+  if(data.attention&&data.attention[i])S.attention.push(data.attention[i]);drawChart();renderDetail();}
+ S.frames=data.frames;S.events=evs;S.attention=data.attention||[];replay=null;setButtons();$("stat").textContent="重播結束";window.__replayDone=true;}
+window.startReplay=startReplay;
+// ---------- 2.5D rendering (elevated camera, blackboard on the left wall) ----------
+const room=$("room"),cc=$("chart"),cx=cc.getContext("2d"),topC=$("topLayer"),tctx=topC.getContext("2d");let ctx=room.getContext("2d");
+let W=800,H=500,DPR=1,K=1,OX=0,OY=0;const BW=820,BH=525;
+const expanded=new Set(),shownInfo=new Set();let hitBubbles=[],headPos={};
+function resize(){DPR=window.devicePixelRatio||1;W=room.clientWidth;H=room.clientHeight;room.width=W*DPR;room.height=H*DPR;topC.width=W*DPR;topC.height=H*DPR;
+ K=Math.min(W/BW,H/BH);OX=(W-BW*K)/2;OY=(H-BH*K)/2+Math.min(30,(H-BH*K)/2);
+ cc.width=cc.clientWidth*DPR;cc.height=cc.clientHeight*DPR;drawChart();}
+new ResizeObserver(resize).observe($("stage"));window.addEventListener("resize",resize);
+function SC(x){return 0.72+0.28*x/860;}
+// camera: elevated, at the REAR of the room looking forward toward the blackboard (x=0 is the front wall), slightly right of centre
+function P(x,z,h){const s=SC(x);return [OX+K*(410+(z-300)*1.3*s+(x-860)*0.05),OY+K*(100+x*0.48-h*0.85*s)];}
+function poly(pts,fill,stroke,lw){ctx.beginPath();pts.forEach((p,i)=>{const s=P(...p);i?ctx.lineTo(...s):ctx.moveTo(...s);});ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1;ctx.stroke();}}
+function seg(a,b,w,col){ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,w*K*SC(a[0]));ctx.lineCap="round";ctx.beginPath();ctx.moveTo(...P(...a));ctx.lineTo(...P(...b));ctx.stroke();}
+function path3(pts,w,col){ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,w*K*SC(pts[0][0]));ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();pts.forEach((p,i)=>{const s=P(...p);i?ctx.lineTo(...s):ctx.moveTo(...s);});ctx.stroke();}
+function dot(p,r,col,stroke){const s=P(...p);ctx.beginPath();ctx.arc(s[0],s[1],r*K*SC(p[0]),0,7);ctx.fillStyle=col;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}}
+function box(x0,x1,z0,z1,h0,h1,top,front,side){if(z1<300)poly([[x0,z1,h1],[x1,z1,h1],[x1,z1,h0],[x0,z1,h0]],side);if(z0>300)poly([[x0,z0,h1],[x1,z0,h1],[x1,z0,h0],[x0,z0,h0]],side);
+ poly([[x1,z0,h1],[x1,z1,h1],[x1,z1,h0],[x1,z0,h0]],front);poly([[x0,z0,h1],[x1,z0,h1],[x1,z1,h1],[x0,z1,h1]],top,"#0003");}
+function emojiAt(p,e,size){const s=P(...p);ctx.font=`${Math.max(8,size*K)}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(e,s[0],s[1]);ctx.textAlign="left";ctx.textBaseline="alphabetic";}
+function hash(s){let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return h;}
+// teacher animation. Front zone (x<FRONT) is free space between blackboard and the first row; the podium sits at the right of it.
+// The teacher only moves along the front lane (x=FRONT) and the aisles between desk columns, so never walks through furniture.
+const AISLES=[38,205,395,562],FRONT=160,HOME={x:100,z:300},PODIUM={x0:45,x1:88,z0:440,z1:515};
+const TA={x:HOME.x,z:HOME.z,path:[],face:[1,0],walk:0,moving:false,act:"lecture",target:null};
+function resetAnim(){SPEECH=null;Object.assign(TA,{x:HOME.x,z:HOME.z,path:[],face:[1,0],walk:0,moving:false,act:"lecture",target:null});poseCache={};attCache={};}
+function nearestAisle(z){return AISLES.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);}
+function route(to,from){from=from||TA;const pts=[];let cur={x:from.x,z:from.z};
+ if(cur.x>FRONT+5){const a=nearestAisle(cur.z);if(Math.abs(cur.z-a)>1){cur={x:cur.x,z:a};pts.push(cur);}
+  if(to.x>FRONT+5&&Math.abs(to.z-a)<1){pts.push(to);return pts;}cur={x:FRONT,z:a};pts.push(cur);}
+ if(to.x>FRONT+5){if(cur.x<FRONT-5){cur={x:FRONT,z:cur.z};pts.push(cur);}pts.push({x:FRONT,z:to.z});pts.push(to);return pts;}
+ // front-zone travel: if the straight line would cross the podium, go round it via the front lane
+ const crosses=(Math.max(cur.z,to.z)>PODIUM.z0-15)&&Math.min(cur.x,to.x)<PODIUM.x1+15;
+ if(crosses&&cur.x<FRONT-5){pts.push({x:FRONT,z:cur.z});pts.push({x:FRONT,z:to.z});}
+ pts.push(to);return pts;}
+function teacherGo(st){if(!st)return;TA.act=st.action;const s=S&&S.students.find(o=>o.name===st.target);TA.target=s||null;
+ const end=TA.path.length?TA.path[TA.path.length-1]:TA;const from={x:end.x??TA.x,z:end.z??TA.z};const away=Math.hypot(from.x-HOME.x,from.z-HOME.z)>40;
+ if((st.action==="call_on"||st.action==="discipline")&&s){const p=seatXZ(s.seat),spot={x:p.x-8,z:p.z+95<=562?p.z+95:p.z-95};TA.path=[...route(spot,TA),{wait:2.2},...route(HOME,spot)];}
+ else if(st.action==="write_board"){TA.path=route({x:34,z:230+Math.random()*140},TA);}
+ else if(st.action==="patrol"){const a=pick([205,395]),back={x:790,z:a};TA.path=[...route(back,TA),{wait:.6},...route(HOME,back)];}
+ else if(away&&!TA.path.length)TA.path=route(HOME,TA);}
+function speedFactor(){const d=+$("speed").value;return 2000/Math.max(d,250);}
+function updateAnim(dt){TA.moving=false;const p0=TA.path[0];
+ if(p0&&p0.wait!=null){p0.wait-=dt*speedFactor();if(p0.wait<=0)TA.path.shift();}
+ else if(p0){const dx=p0.x-TA.x,dz=p0.z-TA.z,d=Math.hypot(dx,dz),step=120*speedFactor()*dt;
+  if(d<=step){TA.x=p0.x;TA.z=p0.z;TA.path.shift();}else{TA.x+=dx/d*step;TA.z+=dz/d*step;TA.face=[dx/d,dz/d];TA.moving=true;TA.walk+=dt*8*Math.min(3,speedFactor());}}
+ if(!TA.moving){let f=[1,0];const atBoard=TA.x<60;if(TA.act==="write_board"&&atBoard)f=[-1,0];else if(TA.target){const p=seatXZ(TA.target.seat),dx=p.x-TA.x,dz=p.z-TA.z,d=Math.hypot(dx,dz)||1;f=[dx/d,dz/d];}
+  TA.face=[TA.face[0]+(f[0]-TA.face[0])*Math.min(1,dt*6),TA.face[1]+(f[1]-TA.face[1])*Math.min(1,dt*6)];}}
+// smooth pose transitions between student actions
+let poseCache={},attCache={},FDT=0.016;
+function lerpDeep(a,b,f){if(Array.isArray(b))return b.map((v,i)=>lerpDeep(a&&a[i],v,f));if(typeof b==="number")return typeof a==="number"?a+(b-a)*f:b;return b;}
+function smoothPose(key,p){const c=poseCache[key];const f=Math.min(1,FDT*5*Math.max(1,speedFactor()*.6));
+ const out=c?{...p,hip:lerpDeep(c.hip,p.hip,f),knee:lerpDeep(c.knee,p.knee,f),foot:lerpDeep(c.foot,p.foot,f),sh:lerpDeep(c.sh,p.sh,f),shL:lerpDeep(c.shL,p.shL,f),shR:lerpDeep(c.shR,p.shR,f),head:lerpDeep(c.head,p.head,f),armL:lerpDeep(c.armL,p.armL,f),armR:lerpDeep(c.armR,p.armR,f),face:lerpDeep(c.face,p.face,f)}:p;
+ poseCache[key]=out;return out;}
+function smoothAtt(key,v){const c=attCache[key];const o=c==null?v:c+(v-c)*Math.min(1,FDT*4);attCache[key]=o;return o;}
+function idleGlance(name){const h=hash(name),per=9+h%8,ph=(clockNow()/1000+h%97)/per,k=Math.floor(ph),fr=ph-k;return fr<1.3/per?((k+h)%2?1:-1):0;}
+function studentPose(st,s,t){const a=st.state.action;let f=[-1,0];
+ if(["listen","notes","daydream"].includes(a)){const g=idleGlance(st.name);if(g)f=[-.35,g*.94];}
+ if(a==="chat"||a==="wait"){const o=S&&S.students.find(q=>q.name===st.state.target);if(o){const p=seatXZ(o.seat),dx=p.x-s.x,dz=p.z-s.z,d=Math.hypot(dx,dz)||1;f=[(-1+2*dx/d)/2,dz/d];const n=Math.hypot(...f)||1;f=[f[0]/n,f[1]/n];}else f=[-.3,.95];}
+ const L=(fw,sd,h,ff)=>{ff=ff||[-1,0];return [s.x+ff[0]*fw-ff[1]*sd,s.z+ff[1]*fw+ff[0]*sd,h];};
+ const pose={hip:L(0,0,26),knee:L(18,0,27),foot:L(20,0,0),sh:L(1,0,56),shL:L(1,10,54),shR:L(1,-10,54),head:L(3,0,70),face:f,armL:[L(10,7,42),L(24,6,40)],armR:[L(10,-7,42),L(24,-6,40)],eyes:true};
+ if(a==="notes"){pose.head=L(7,0,66);pose.shR=L(3,-12,50);pose.armR=[L(2,-21,37),L(28+Math.sin(t*9)*1.5,-25,39.5)];}
+ else if(a==="ask"){pose.shR=L(1,-12,56);pose.armR=[L(2,-18,82),L(3,-19,106+Math.sin(t*4)*1.5)];}
+ else if(a==="answer"){pose.hip=L(-2,0,46);pose.knee=L(0,0,24);pose.foot=L(2,0,0);pose.sh=L(-1,0,78);pose.head=L(0,0,92);pose.shR=L(-1,-12,78);pose.armL=[L(4,9,64),L(8,9,52)];pose.shL=L(-1,10,76);pose.armR=[L(0,-18,100),L(1,-19,122)];}
+ else if(a==="chat"||a==="wait"){pose.armR=[L(8,-7,48,f),L(18,-6,52,f)];}
+ else if(a==="daydream"){pose.head=L(0,0,73);pose.armR=[L(18,-6,40),L(9,-3,61)];pose.face=[-.6,0];}
+ else if(a==="phone"){pose.head=L(8,0,65);pose.armL=[L(10,5,40),L(18,2,46)];pose.armR=[L(10,-5,40),L(18,-2,46)];pose.phone=L(20,0,48);}
+ else if(a==="sleep"){pose.sh=L(18,0,44);pose.shL=L(18,-13,44);pose.shR=L(18,13,44);pose.head=L(34,0,47);pose.armL=[L(26,-22,41),L(37,-11,41)];pose.armR=[L(26,22,41),L(37,11,41)];pose.eyes=false;}
+ return pose;}
+// head as seen from the rear camera: facing away = mostly hair, turned sideways = profile with an eye, facing camera = face
+// ---------- art style (swap ART to restyle every character: Q版 / 日系 / 扁平 / 像素 …) ----------
+// Each style implements: limb(points,width,color), torso(hip,shoulder,width,color), head(pos,facing,r,hair,skin,eyes), hand(pos,r,skin), palette(name)
+const ART_STYLES={simple:{name:"簡約",
+ limb:(pts,w,c)=>path3(pts,w,c),torso:(hip,sh,w,c)=>seg(hip,sh,w,c),head:(p,f,r,hair,skin,eyes)=>drawHeadSimple(p,f,r,hair,skin,eyes),hand:(p,r,skin)=>dot(p,r,skin),
+ palette:name=>{const hue=hash(name)%360;return {shirt:`hsl(${hue},45%,55%)`,dark:`hsl(${hue},40%,35%)`,hair:"#2b2b2b",skin:"#f2cba6",pants:"#3d4a63"};}}};
+// ---------- Q版 (chibi) style ----------
+const OUT="#4a3838";
+const GIRL_GIVEN=["品妍","子晴","語彤","欣妤","詩涵","郁婷","芷若","心怡","雨萱","佳穎","雅婷","佩珊","思涵","家瑜","宜君"];
+function isGirl(name){const g=String(name).slice(1);return GIRL_GIVEN.includes(g)||/[婷珊涵瑜君妍晴彤妤若怡萱雅芳美玲琪]$/.test(g);}
+function olw(x){return Math.max(1.1,1.7*K*SC(x));}
+function lighten(hex,a){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255,m=v=>Math.round(v+(255-v)*a);return `rgb(${m(r)},${m(g)},${m(b)})`;}
+function ell(x,y,rx,ry,fill,stroke,lw){ctx.beginPath();ctx.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),0,0,7);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1;ctx.stroke();}}
+function cLimb(pts,w,c){path3(pts,w+2.6,OUT);path3(pts,w,c);}
+function cDot(p,r,c){const s=P(...p);ell(s[0],s[1],r*K*SC(p[0]),r*K*SC(p[0]),c,OUT,olw(p[0]));}
+function drawHeadChibi(p,f,r,hair,skin,eyes,look){look=look||{};const s=P(...p),R=r*1.55*K*SC(p[0]),lw=olw(p[0]);
+ const cx=s[0],cy=s[1],sx=Math.max(-1,Math.min(1,f[1])),fc=f[0],away=fc<-0.55,front=fc>0.35,style=look.style||"short",acc=look.acc||"#ff9fb3";
+ const wide=(style==="bob"||style==="long")?1.1:1.0;
+ const tail=(dx,dy,rx,ry)=>{ell(cx+dx,cy+dy,rx,ry,hair,OUT,lw);};
+ const tie=(dx,dy)=>ell(cx+dx,cy+dy,R*.13,R*.1,acc,OUT,lw*.8);
+ // pieces hanging behind the head (visible around it); when the head faces away they sit on top instead
+ const back=()=>{
+  if(style==="ponytail"){const dx=-sx*R*.75;tail(dx,R*.9,R*.34,R*.7);tie(dx*.9,R*.32);}
+  if(style==="twintails"){tail(-R*1.02,R*.65,R*.3,R*.62);tail(R*1.02,R*.65,R*.3,R*.62);tie(-R*.92,R*.12);tie(R*.92,R*.12);}};
+ if(style==="long")ell(cx-sx*R*.15,cy+R*.45,R*1.1,R*1.05,hair,OUT,lw);
+ if(style==="bun"){ell(cx-sx*R*.2,cy-R*.95,R*.42,R*.4,hair,OUT,lw);tie(-sx*R*.2,-R*.6);}
+ if(!away)back();
+ ell(cx,cy,R*wide,R,hair,OUT,lw);
+ if(!away){// face, clipped inside the head shape
+  const side=!front&&Math.abs(sx)>.35,fcx=cx+sx*R*(side?.55:.45)*(1-Math.max(0,fc)),frx=R*(front?.84:side?.58:.6);
+  ctx.save();ctx.beginPath();ctx.ellipse(cx,cy,R*wide-lw*.5,R-lw*.5,0,0,7);ctx.clip();
+  ell(fcx,cy+R*.25,frx,R*.78,skin);
+  ell(cx+sx*R*.12,cy-R*.52,R*1.08,R*.62,hair);// bangs
+  for(let k=-1;k<=1;k++)ell(fcx+k*frx*.55,cy+R*.02,frx*.3,R*.2,hair);
+  ctx.restore();ell(cx,cy,R*wide,R,null,OUT,lw);
+  if(side){const d=Math.sign(sx);ell(cx+d*R*.97,cy+R*.42,R*.13,R*.11,skin,OUT,lw*.8);ctx.fillStyle=skin;ctx.fillRect(cx+d*R*.86-(d<0?R*.1:0),cy+R*.3,R*.1,R*.24);// nose bump
+   ell(cx+d*R*.08,cy+R*.32,R*.13,R*.16,skin,OUT,lw*.8);}// ear
+  const eyeY=cy+R*.36,ex=front?[fcx-R*.34,fcx+R*.34]:[fcx+sx*R*(side?.12:.22)];
+  ex.forEach(x=>{if(eyes){ell(x,eyeY,R*.13,R*.18,"#3a2626");ell(x-R*.04,eyeY-R*.07,R*.055,R*.055,"#fff");}
+   else{ctx.strokeStyle="#3a2626";ctx.lineWidth=lw*.9;ctx.beginPath();ctx.arc(x,eyeY-R*.04,R*.12,.2,Math.PI-.2);ctx.stroke();}
+   ell(x+(x<fcx?-1:1)*R*.12,eyeY+R*.22,R*.12,R*.06,"rgba(255,140,160,.55)");});
+  if(front){ctx.strokeStyle="#7a3a3a";ctx.lineWidth=lw*.9;ctx.beginPath();ctx.arc(fcx,cy+R*.6,R*.1,.3,Math.PI-.3);ctx.stroke();}
+ }else{// back of the head: shine + nape tufts
+  ctx.strokeStyle=lighten(hair.startsWith("#")?hair:"#333333",.35);ctx.lineWidth=R*.12;ctx.lineCap="round";ctx.beginPath();ctx.arc(cx-R*.1,cy-R*.1,R*.62,3.6,4.6);ctx.stroke();
+  if(style==="short"||style==="spiky"){for(let k=-1;k<=1;k++){ctx.fillStyle=hair;ctx.beginPath();ctx.moveTo(cx+k*R*.35-R*.15,cy+R*.85);ctx.lineTo(cx+k*R*.35,cy+R*1.08);ctx.lineTo(cx+k*R*.35+R*.15,cy+R*.85);ctx.fill();}}
+  back();}
+ if(style==="spiky")for(let k=-1;k<=1;k++){ctx.fillStyle=hair;ctx.strokeStyle=OUT;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(cx+k*R*.45-R*.2,cy-R*.88);ctx.lineTo(cx+k*R*.5,cy-R*1.22);ctx.lineTo(cx+k*R*.45+R*.2,cy-R*.88);ctx.fill();ctx.stroke();}
+ if(look.clip){const d=look.clipSide||1;ctx.fillStyle=acc;ctx.strokeStyle=OUT;ctx.lineWidth=lw*.8;ctx.beginPath();ctx.roundRect(cx+d*R*.5-R*.16,cy-R*.5,R*.32,R*.17,R*.06);ctx.fill();ctx.stroke();}}
+const HAIRS=["#3a2a22","#1f1d2b","#5a3a28","#7a4b2a","#2b2230","#8a5a3a","#4a3228"],ACCS=["#ff9fb3","#ffd36b","#9fd8ff","#b8e8a0","#d7b4ff"];
+ART_STYLES.chibi={name:"Q版",
+ limb:(pts,w,c)=>cLimb(pts,w+1,c),torso:(hip,sh,w,c)=>cLimb([hip,sh],w+4,c),head:(p,f,r,hair,skin,eyes,look)=>drawHeadChibi(p,f,r,hair,skin,eyes,look),hand:(p,r,skin)=>cDot(p,r+.6,skin),
+ palette:name=>{const h=hash(name),girl=isGirl(name);const styles=girl?["bob","ponytail","twintails","bun","long"]:["short","spiky","short"];
+  return {shirt:girl?"#7a1f2b":"#2d3a66",dark:girl?"#661a24":"#273259",hair:girl&&h%7===0?"#e89aa8":HAIRS[h%HAIRS.length],skin:"#ffe0c8",pants:girl?"#5a1820":"#2f3a5c",girl,
+   look:{style:styles[(h>>3)%styles.length],acc:ACCS[(h>>5)%ACCS.length],clip:girl?(h>>2)%2===0:(h>>2)%5===0,clipSide:(h>>4)%2?1:-1}};}};
+function drawRoom(){const X=860,Z=600,HW=160,TL=60;
+ poly([[0,0,0],[0,Z,0],[0,Z,HW],[0,0,HW]],"#f6ecd9");// front wall (faces the camera)
+ poly([[0,0,0],[X,0,0],[X,0,HW],[0,0,HW]],"#efe3cc");// left wall
+ poly([[0,Z,0],[X,Z,0],[X,Z,HW],[0,Z,HW]],"#f1e6d0");// right wall
+ // wainscot bands
+ poly([[0,0,0],[0,Z,0],[0,Z,36],[0,0,36]],"#e3cda8");poly([[0,0,0],[X,0,0],[X,0,36],[0,0,36]],"#dcc59f");poly([[0,Z,0],[X,Z,0],[X,Z,36],[0,Z,36]],"#dfc8a2");
+ seg([0,0,36],[0,Z,36],2.5,"#b8926a");seg([0,0,36],[X,0,36],2.5,"#b8926a");seg([0,Z,36],[X,Z,36],2.5,"#b8926a");
+ // windows on the left wall
+ for(let x=150;x<760;x+=190){poly([[x,0,72],[x+130,0,72],[x+130,0,145],[x,0,145]],"#cdeaf8","#fff",3);seg([x+65,0,72],[x+65,0,145],2.5,"#fff");poly([[x,0,72],[x+18,0,72],[x+18,0,145],[x,0,145]],"#f7c9c9cc");poly([[x+112,0,72],[x+130,0,72],[x+130,0,145],[x+112,0,145]],"#f7c9c9cc");}
+ // checker tile floor
+ for(let x=0;x<X;x+=TL)for(let z=0;z<Z;z+=TL){const x1=Math.min(X,x+TL),z1=Math.min(Z,z+TL);poly([[x,z,0],[x1,z,0],[x1,z1,0],[x,z1,0]],((x/TL+z/TL)%2)?"#e6dccb":"#cfd5c2");}
+ // door on the front wall
+ poly([[0,525,0],[0,585,0],[0,585,125],[0,525,125]],"#c99a66",OUT,1.5);poly([[0,533,70],[0,577,70],[0,577,115],[0,533,115]],"#cdeaf8");dot([0,535,60],2,"#8a6a40");
+ // green board with wooden frame, tray, chalk and erasers
+ poly([[0,108,48],[0,492,48],[0,492,140],[0,108,140]],"#a0703f",OUT,1.5);poly([[0,116,55],[0,484,55],[0,484,133],[0,116,133]],"#2f5d45");
+ poly([[0,112,48],[8,112,48],[8,488,48],[0,488,48]],"#b88550",OUT,1);
+ [[150,"#fff"],[190,"#ffe08a"],[205,"#ffb3c1"],[380,"#e8e2d0"],[420,"#ffd36b"]].forEach(([zz,c],k)=>poly([[2,zz,49],[6,zz,49],[6,zz+(k%3===0?16:10),49],[2,zz+(k%3===0?16:10),49]],c,OUT,1));
+ {const c=P(0,300,149);ell(c[0],c[1],9*K,9*K,"#fff",OUT,olw(0));ctx.strokeStyle=OUT;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(c[0],c[1]);ctx.lineTo(c[0],c[1]-6*K);ctx.moveTo(c[0],c[1]);ctx.lineTo(c[0]+4*K,c[1]);ctx.stroke();}
+ // bear poster + plant (front wall, left of board)
+ poly([[0,28,72],[0,92,72],[0,92,135],[0,28,135]],"#fff6e6",OUT,1.2);emojiAt([0,60,103],"🧸",20);
+ poly([[0,500,95],[0,520,95],[0,520,128],[0,500,128]],"#fff",OUT,1);seg([0,504,120],[0,516,120],1,"#9ab");seg([0,504,112],[0,516,112],1,"#9ab");seg([0,504,104],[0,514,104],1,"#9ab");
+ emojiAt([14,24,16],"🪴",26);
+ // low shelf with bins under the left windows
+ box(300,720,0,18,0,32,"#e1b780","#c99a62","#c99a62");
+ [320,400,480,560,640].forEach((x,k)=>poly([[x,18,4],[x+62,18,4],[x+62,18,26],[x,18,26]],["#c7d8e6","#e6d4b0","#c7d8e6","#e6d4b0","#c7d8e6"][k],OUT,1));
+ emojiAt([340,8,42],"🪴",17);emojiAt([470,8,40],"🧸",15);emojiAt([600,8,40],"📚",15);emojiAt([690,8,42],"🪴",17);
+ // cork board + bookshelf on the right wall
+ poly([[180,Z,66],[360,Z,66],[360,Z,132],[180,Z,132]],"#b8864f",OUT,1.5);poly([[186,Z,71],[354,Z,71],[354,Z,127],[186,Z,127]],"#d9ab73");
+ [[200,108,"#fff7b0"],[240,90,"#ffd0dc"],[285,112,"#cfe9ff"],[320,86,"#d9f5c8"],[215,80,"#fff"]].forEach(([x,h,c])=>{poly([[x,Z,h],[x+24,Z,h],[x+24,Z,h+18],[x,Z,h+18]],c,"#0003",1);dot([x+12,Z,h+17],1.4,"#e55");});
+ box(430,575,584,600,0,84,"#d9a86c","#c08a52","#b07c48");
+ [12,40,66].forEach(h=>{poly([[436,584,h],[569,584,h],[569,584,h+22],[436,584,h+22]],"#8a5e36");for(let b=0;b<9;b++){const bx=440+b*14+(h%3);poly([[bx,584,h],[bx+11,584,h],[bx+11,584,h+16+(b*7%6)],[bx,584,h+16+(b*7%6)]],["#e57373","#64b5f6","#ffd54f","#81c784","#ba68c8","#ffb74d"][(b+h)%6]);}});
+ emojiAt([470,592,96],"🪴",18);emojiAt([540,592,94],"🧸",14);}
+function drawPodium(){const p=PODIUM;box(p.x0,p.x1,p.z0,p.z1,0,52,"#dcab70","#c08a52","#a8763f");poly([[p.x1,p.z0+8,40],[p.x1,p.z1-8,40],[p.x1,p.z1-8,46],[p.x1,p.z0+8,46]],"#f6e3c2");emojiAt([66,475,55],"📘",16);}
+function drawDesk(s,st){const x=s.x,z=s.z;
+ for(const [dx,dz] of [[-62,-31],[-62,31],[-30,-31],[-30,31]])seg([x+dx,z+dz,0],[x+dx,z+dz,32],2.2,"#8a8f99");
+ box(x-64,x-28,z-34,z+34,31,38,"#ecc48c","#d3a266","#c08e55");
+ const a=st.state.action,hs=hash(st.name);
+ if(a==="notes"){poly([[x-60,z+4,38.5],[x-32,z+4,38.5],[x-32,z+32,38.5],[x-60,z+32,38.5]],"#fffbd6","#999");for(const l of[-52,-46,-40])seg([x+l,z+8,38.6],[x+l,z+26,38.6],.8,"#9bb");}
+ else if(a==="sleep"||a==="phone"){poly([[x-60,z-22,38.5],[x-38,z-22,38.5],[x-38,z+2,38.5],[x-60,z+2,38.5]],"#5b8fd6","#234");}
+ else{poly([[x-60,z-22,38.5],[x-38,z-22,38.5],[x-38,z,38.5],[x-60,z,38.5]],"#fff","#888");poly([[x-60,z,38.5],[x-38,z,38.5],[x-38,z+22,38.5],[x-60,z+22,38.5]],"#fff","#888");}
+ if(hs%3!==2){const c=ACCS[hs%ACCS.length];poly([[x-58,z+24,38.5],[x-50,z+24,38.5],[x-50,z+32,38.5],[x-58,z+32,38.5]],c,OUT,1);poly([[x-58,z+24,42],[x-50,z+24,42],[x-50,z+32,42],[x-58,z+32,42]],c,OUT,1);}
+ if(hs%3===0&&["chat","daydream","phone","sleep"].includes(a))emojiAt([x-46,z-28,41],hs%2?"🍪":"🥤",11);
+ if(hs%4===1){seg([x-60,z-30,38.8],[x-46,z-26,38.8],2.2,"#f2b33d");seg([x-46,z-26,38.8],[x-43,z-25,38.8],1.4,"#555");}}
+let ART=ART_STYLES[new URLSearchParams(location.search).get("style")]||ART_STYLES.chibi;
+
+function drawHeadSimple(head,f,r,hair,skin,eyes){const away=f[0]<-0.55;
+ if(away){dot(head,r,hair);return;}
+ dot([head[0]-f[0]*1.8,head[1]-f[1]*1.8,head[2]+1],r*1.05,hair);dot([head[0]+f[0]*2.2,head[1]+f[1]*2.2,head[2]-1.5],r*.9,skin);
+ if(eyes){if(f[0]>0.5){dot([head[0]+r*.8,head[1]-3,head[2]],1.4,"#222");dot([head[0]+r*.8,head[1]+3,head[2]],1.4,"#222");}else dot([head[0]+f[0]*r*.85,head[1]+f[1]*r*.85,head[2]],1.4,"#222");}}
+function L2(q,dz){return [q[0],q[1]+dz,q[2]];}
+function drawStudent(st,i,t){const s=seatXZ(st.seat),x=s.x,z=s.z,pal=ART.palette(st.name),shirt=pal.shirt,dark=pal.dark;
+ const p=smoothPose(st.name,studentPose(st,s,t));const a=st.state.action;
+  for(const dz of[-14,14]){seg([x+12,z+dz,0],[x+12,z+dz,19],2,"#8a8f99");seg([x-6,z+dz,0],[x-6,z+dz,19],2,"#8a8f99");}
+ const legs=()=>{for(const d of[-5,5]){const o=q=>[q[0],q[1]+d,q[2]];ART.limb([o(p.hip),o(p.knee),o(p.foot)],5.5,pal.pants);if(a==="answer"){const ft=o(p.foot);ART.hand([ft[0]-3,ft[1],ft[2]+2],3,"#4a3a36");}}};if(a!=="answer")legs();
+ box(x-8,x+14,z-17,z+17,19,23,"#dcab70","#c08a52","#a8763f");
+ if(a==="answer")legs();
+ ART.limb([p.shL||p.sh,...p.armL],6,dark);if(!(a==="ask"||a==="answer"||a==="notes"))ART.limb([p.shR||p.sh,...p.armR],6,shirt);
+ if(p.phone){const ps=P(...p.phone);const g=ctx.createRadialGradient(ps[0],ps[1],1,ps[0],ps[1],16*K);g.addColorStop(0,"rgba(120,220,255,.9)");g.addColorStop(1,"rgba(120,220,255,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(ps[0],ps[1],16*K,0,7);ctx.fill();
+  ctx.fillStyle="#222";ctx.fillRect(ps[0]-4*K,ps[1]-3*K,8*K,6*K);ctx.fillStyle="#9ef";ctx.fillRect(ps[0]-3*K,ps[1]-2*K,6*K,4*K);}
+ 
+ // chair back first (drawn under the body) so the student's back stays readable
+ seg([x+15,z-13,23],[x+15,z-13,30],2,"#8a8f99");seg([x+15,z+13,23],[x+15,z+13,30],2,"#8a8f99");
+ box(x+13,x+17,z-15,z+15,29,41,"#dcab70","#c08a52","#a8763f");
+ ART.torso([p.hip[0],p.hip[1],p.hip[2]+9],p.sh,21,shirt);
+ // writing arm: shoulder → down the right side of the body → hand and pen on the desk; above torso/desk, below the head
+ if(a==="notes"){ART.limb([p.shR,...p.armR],6,shirt);const h=P(...p.armR[1]);ctx.lineCap="round";ctx.strokeStyle=OUT;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(h[0]-2,h[1]+2);ctx.lineTo(h[0]+9,h[1]-6);ctx.stroke();ctx.strokeStyle="#ffd36b";ctx.lineWidth=2.4;ctx.stroke();ART.hand(p.armR[1],3.4,pal.skin);}
+ ART.head(p.head,p.face,12,pal.hair,pal.skin,p.eyes,pal.look);
+ if(a==="ask"||a==="answer"){ART.limb([p.shR||p.sh,...p.armR],6,shirt);ART.hand(p.armR[1],3.8,pal.skin);}
+ if(a==="sleep"){ART.limb([p.shL,...p.armL],7,dark);ART.limb([p.shR,...p.armR],7,shirt);ART.hand(p.armL[1],3.4,pal.skin);ART.hand(p.armR[1],3.4,pal.skin);ART.head(p.head,p.face,12,pal.hair,pal.skin,false,pal.look);}
+ if(a==="sleep"){const hp=P(p.head[0],p.head[1],p.head[2]+18);ctx.fillStyle="#335";ctx.font=`bold ${Math.max(9,12*K)}px sans-serif`;ctx.fillText("z",hp[0]+8*K+Math.sin(t*2)*2,hp[1]-Math.abs(Math.sin(t*1.5))*6);}
+ const hs=P(p.head[0],p.head[1],p.head[2]+18);headPos[i]={x:hs[0],y:hs[1],cx:P(...p.head)[0],cy:P(...p.head)[1]};}
+const TEACHER_LOOK={style:"bob",acc:"#ffd36b",clip:true,clipSide:1};
+function drawTeacher(t){const f=TA.face,x=TA.x,z=TA.z,chibi=ART===ART_STYLES.chibi;
+ const L=(fw,sd,h)=>[x+f[0]*fw-f[1]*sd,z+f[1]*fw+f[0]*sd,h];const sw=TA.moving?Math.sin(TA.walk)*9:0;
+ ctx.fillStyle="#0002";const sh=P(x,z,0);ctx.beginPath();ctx.ellipse(sh[0],sh[1],16*K*SC(x),6*K*SC(x),0,0,7);ctx.fill();
+ const leg=chibi?"#3a3f55":"#2f2f3a",top=chibi?"#d8ae84":"#3b6ea5",sleeve=chibi?"#cda177":"#2c5a8f",hair=chibi?"#6a4630":"#5a3a22",skin=chibi?"#ffe0c8":"#f2cba6";
+ ART.limb([L(0,-5,54),L(sw,-5,0)],7.5,leg);ART.limb([L(0,5,54),L(-sw,5,0)],7.5,leg);ART.hand(L(sw+2,-5,1),3.2,"#4a3a36");ART.hand(L(-sw+2,5,1),3.2,"#4a3a36");
+ 
+ const a=TA.moving?"walk":TA.act;const awayish=f[0]<-0.3;
+ // resting arms are bent: shoulder → elbow out to the side → hand back in near the hip ("( )" from the front, "<" / ">" from the side/back)
+ const rest=pts=>{pts.rest=true;return pts;};
+ let back=rest(awayish?[L(3,-18,63),L(13,-8,58)]:[L(-4,-16,66),L(6,-11,53)]),arm=rest(awayish?[L(3,18,63),L(13,8,58)]:[L(-4,16,66),L(6,11,53)]);
+ if(a==="walk"){back=rest([L(-sw*.4,-16,66),L(-sw*.8+3,-11,54)]);arm=rest([L(sw*.4,16,66),L(sw*.8+3,11,54)]);}
+ else if(a==="lecture"||a==="activity"||a==="feedback"){arm=[L(6,15,74),L(12,24,82+Math.sin(t*3)*6)];}
+ else if(a==="question"){arm=[L(3,18,98),L(4,21,124)];}
+ else if(a==="call_on"||a==="discipline"){arm=[L(14,9,76),L(32,10,76)];}
+ else if(a==="write_board"){arm=[L(8,16,96),L(16,24,112+Math.sin(t*7)*5)];}
+ else if(a==="answer"){arm=[L(10,9,74),L(20,12,82)];back=[L(10,-9,74),L(20,-12,82)];}
+ else if(a==="patrol"){back=[L(-8,-6,64),L(-10,0,52)];arm=[L(-8,6,64),L(-10,0,52)];}
+ const facingCam=f[0]>0.3;const chalk=()=>{ART.hand(arm[1],3,skin);if(a==="write_board"){const h=P(...arm[1]);ctx.fillStyle="#fff";ctx.strokeStyle=OUT;ctx.lineWidth=1;ctx.fillRect(h[0]-1.5,h[1]-6,3,5);ctx.strokeRect(h[0]-1.5,h[1]-6,3,5);}};
+ // layer order follows depth (camera looks from +x): an arm is "near" when its shoulder is turned toward the camera
+ // (side views) or its hand reaches toward the camera (gesturing forward). Far arms go behind the torso, near arms in
+ // front of it, and the head is always drawn last so no hand ever covers the face. f is smoothed, so the swap happens
+ // when the shoulder crosses the body's mid-plane, where both orders look the same — no glitch frame.
+ const arms=[{sh:L(0,10,80),pts:arm,c:top,hand:chalk},{sh:L(0,-10,80),pts:back,c:sleeve,hand:()=>ART.hand(back[1],3,skin)}];
+ const near=A=>A.pts.rest&&awayish&&!TA.moving?false:(A.pts.rest&&facingCam&&A.sh[0]-x>-4)||(A.sh[0]-x)>2.5||(A.pts[A.pts.length-1][0]-A.sh[0])>8;
+ const drawArm=A=>{ART.limb([A.sh,...A.pts],6,A.c);A.hand();};
+ arms.filter(A=>!near(A)).forEach(drawArm);
+ ART.torso(L(0,0,52),L(0,0,84),21,top);
+ if(chibi&&facingCam){seg(L(2,0,83),L(2,0,64),5,"#fffaf2");dot(L(3,-6,74),1.6,"#e8b84a");}
+ arms.filter(near).forEach(drawArm);
+ const head=L(0,0,101);ART.head(head,f,12.5,hair,skin,true,TEACHER_LOOK);
+ 
+ const hs=P(head[0],head[1],head[2]+19);headPos.T={x:hs[0],y:hs[1],cx:P(...head)[0],cy:P(...head)[1]};}
+function previewStudents(){return personas.map(p=>({...p,state:{action:"listen",content:"",attention:70}}));}
+// ---------- overlay (always on top) ----------
+function wrapText(txt,maxW,maxL){const out=[];let line="";for(const ch of txt){if(ctx.measureText(line+ch).width>maxW){out.push(line);line="";}line+=ch;}if(line)out.push(line);
+ let trunc=false;if(out.length>maxL){trunc=true;out.length=maxL;out[maxL-1]=out[maxL-1].slice(0,-1)+"…";}return {lines:out,trunc};}
+// bubbles are anchored to FIXED slots (seat-based for students) so they never jump around; semi-transparent so they block less
+function drawBubble(ag,ax,ay,maxW,maxL,font,lh,side){const spoken=ag.teacher||SPOKEN.has(ag.st.action),exp=expanded.has(ag.key);ctx.font=font;
+ const emo=ag.teacher?(T_ICON[ag.st.action]||"🗣️"):(ACTIONS[ag.st.action]||"");
+ const si=ag.teacher&&!exp&&SPEECH?speechIdx():-1;const txt=si>=0?SPEECH.list[si]:ag.st.content;
+ const {lines,trunc}=wrapText(emo+" "+txt,exp?Math.max(maxW,220):maxW,exp?10:maxL);
+ const w=Math.max(...lines.map(l=>ctx.measureText(l).width))+12,h=lines.length*lh+8;
+ const r=side?{x:Math.min(W-w-3,ax+9),y:Math.max(3,ay-h/2-4),w,h}:{x:Math.max(3,Math.min(W-w-3,ax-w/2)),y:Math.max(3,ay-h-7),w,h};
+ const bg=ag.teacher?"rgba(255,246,200,":spoken?"rgba(255,255,255,":"rgba(232,240,255,";const a=exp?1:.75;
+ ctx.strokeStyle=exp?"#e33":ag.teacher?"#b58b00":spoken?"#777":"#6a7fb0";ctx.lineWidth=exp?2:1.1;if(exp){ctx.shadowColor="#0006";ctx.shadowBlur=10;}ctx.fillStyle=bg+a+")";
+ const tx=side?r.x:Math.max(r.x+8,Math.min(r.x+r.w-8,ax)),tipY=side?Math.min(r.y+r.h-6,Math.max(r.y+6,ay)):r.y+r.h;
+ if(spoken){ctx.beginPath();if(side){ctx.moveTo(tx+1,tipY-5);ctx.lineTo(ax,ay);ctx.lineTo(tx+1,tipY+5);}else{ctx.moveTo(tx-5,tipY);ctx.lineTo(ax,ay-1);ctx.lineTo(tx+5,tipY);}ctx.fill();ctx.stroke();}
+ else{[[.35,3],[.75,1.8]].forEach(([q,rr])=>{ctx.beginPath();ctx.arc(tx+(ax-tx)*q,tipY+(ay-tipY)*q,rr,0,7);ctx.fill();ctx.stroke();});}
+ ctx.beginPath();ctx.roundRect(r.x,r.y,r.w,r.h,spoken?7:12);ctx.fill();if(!spoken)ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+ if(spoken){ctx.fillStyle=bg+a+")";if(side)ctx.fillRect(tx-1.5,tipY-4,2.5,8);else ctx.fillRect(tx-4,tipY-1.5,8,2.5);}
+ ctx.shadowBlur=0;ctx.fillStyle=spoken?"#111":"#2b3a66";ctx.font=font;lines.forEach((l,i)=>ctx.fillText(l,r.x+6,r.y+4+(i+1)*lh-3));
+ if(trunc){ctx.fillStyle="#666";ctx.font="9px sans-serif";ctx.fillText("▼",r.x+r.w-10,r.y+r.h-3);}
+ hitBubbles.push({key:ag.key,...r});}
+function drawOverlay(studs){hitBubbles=[];
+ // blackboard card (the only place board text is shown)
+ updateBoard();
+ const agents=[];
+ studs.forEach((st,i)=>{const s=seatXZ(st.seat),a=P(s.x+2,s.z,st.state.action==="answer"?134:st.state.action==="ask"?124:104),b=P(s.x,s.z,st.state.action==="answer"?92:72);agents.push({key:i,name:st.name,st:st.state,ax:a[0],ay:a[1]+6,bx:b[0]+13*K*SC(s.x),by:b[1],hp:headPos[i]});});
+ if(headPos.T)agents.push({key:"T",name:(S?S.teacher.name:teacherP.name),st:S?S.teacher.state:{action:"lecture"},teacher:true,ax:headPos.T.x,ay:headPos.T.y-4,hp:headPos.T});
+ agents.forEach(ag=>{const emo=ag.teacher?(T_ICON[ag.st.action]||"🗣️"):(ACTIONS[ag.st.action]||"");ctx.font="bold 12px sans-serif";const label=`${ag.name} ${emo}`;const tw=ctx.measureText(label).width;const w=tw+10+(ag.teacher?0:30);
+  const r={x:ag.ax-w/2,y:ag.ay-16,w,h:16};ag.label=r;ag.tw=tw;ag.labelText=label;});
+ const info=ag=>ag.teacher||$("showAll").checked||shownInfo.has(ag.key);
+ const drawLabels=()=>agents.filter(info).forEach(ag=>{const r=ag.label,tw=ag.tw,label=ag.labelText;ctx.font="bold 12px sans-serif";
+  if(selected===ag.key&&ag.hp){ctx.strokeStyle="#e33";ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(ag.hp.cx,ag.hp.cy,20*K+4,0,7);ctx.stroke();}
+  ctx.fillStyle=ag.teacher?"rgba(255,243,196,.9)":"rgba(255,255,255,.82)";ctx.strokeStyle=selected===ag.key?"#e33":"#0004";ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(r.x,r.y,r.w,r.h,5);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#111";ctx.fillText(label,r.x+5,r.y+12);
+  if(!ag.teacher){const att=smoothAtt(ag.name,ag.st.attention??70),bx=r.x+tw+9,by=r.y+5;ctx.fillStyle="#0005";ctx.fillRect(bx-1,by-1,28,8);ctx.fillStyle="#ddd";ctx.fillRect(bx,by,26,6);ctx.fillStyle=`hsl(${att*1.2},75%,45%)`;ctx.fillRect(bx,by,26*att/100,6);}});
+ const sw=Math.max(70,Math.min(150,190*1.3*K*.72-62));
+ const speaking=ag=>{const st=studs[ag.key];return SPOKEN.has(ag.st.action)&&st&&st._shownAt!=null&&clockNow()<st._shownAt+st._dur;};
+ // students: spoken bubbles while they are speaking; thoughts, names and bars only when clicked (or 顯示全部資訊)
+ const show=ag=>ag.st&&ag.st.content&&(ag.teacher||expanded.has(ag.key)||(info(ag)&&(ag.st.action!=="listen"||selected===ag.key))||speaking(ag));
+ // back rows first, so nearer bubbles sit on top; teacher and expanded bubbles last
+ agents.filter(ag=>!ag.teacher&&show(ag)&&!expanded.has(ag.key)).sort((a,b)=>a.ay-b.ay).forEach(ag=>drawBubble(ag,ag.bx,ag.by,sw,3,"12px sans-serif",15,true));
+ agents.filter(ag=>ag.teacher&&show(ag)&&!expanded.has(ag.key)).forEach(ag=>ag.label.y<84?drawBubble(ag,ag.label.x+ag.label.w,ag.label.y+8,260,4,"13px sans-serif",16,true):drawBubble(ag,ag.ax,ag.label.y,260,4,"13px sans-serif",16));
+ drawLabels();
+ // a clicked bubble goes on the top canvas: above names, bars, other bubbles and the board card, fully opaque
+ tctx.setTransform(DPR,0,0,DPR,0,0);tctx.clearRect(0,0,W,H);const c0=ctx;ctx=tctx;
+ try{agents.filter(ag=>show(ag)&&expanded.has(ag.key)).forEach(ag=>ag.teacher?drawBubble(ag,ag.ax,ag.label.y,240,12,"13px sans-serif",16):drawBubble(ag,ag.bx,ag.by,230,12,"12px sans-serif",16,true));}finally{ctx.shadowBlur=0;ctx=c0;}}
+// blackboard card: fixed height, scrolls with the wheel, follows the newest line unless the user scrolled up
+function updateBoard(){const body=$("boardBody"),txt=(S&&S.blackboard)||"（空）",old=body.dataset.t||"";$("boardMin").textContent=S?`第 ${S.minute} 分`:"";
+ if(old===txt)return;const follow=!old||!txt.startsWith(old)||body.scrollTop+body.clientHeight>=body.scrollHeight-4;
+ body.textContent=txt;body.dataset.t=txt;if(follow)body.scrollTop=body.scrollHeight;}
+// the board card sits above the canvas: forward clicks to the canvas so a focused bubble on top of it stays clickable
+$("board").addEventListener("click",e=>{if(expanded.size)room.onclick(e);});
+$("boardBody").addEventListener("wheel",e=>{const b=e.currentTarget;if(e.ctrlKey){e.preventDefault();return;}e.stopPropagation();
+ if((e.deltaY<0&&b.scrollTop<=0)||(e.deltaY>0&&b.scrollTop+b.clientHeight>=b.scrollHeight-1))e.preventDefault();},{passive:false});
+let lastT=performance.now();
+function render(now){const dt=Math.min(.1,(now-lastT)/1000);lastT=now;const t=now/1000;FDT=dt;updateAnim(dt);if(SPEECH&&!paused)SPEECH.el+=dt*1000;
+ ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,W,H);drawRoom();headPos={};
+ const studs=S?S.students:previewStudents();const items=studs.flatMap((st,i)=>{const s=seatXZ(st.seat);return [{z:s.z,x:s.x-28,d:()=>drawDesk(s,st)},{z:s.z,x:s.x,d:()=>drawStudent(st,i,t)}];});
+ items.push({z:TA.z,x:TA.x,d:()=>drawTeacher(t)});items.push({x:(PODIUM.x0+PODIUM.x1)/2,z:480,d:drawPodium});items.sort((a,b)=>a.x-b.x||a.z-b.z);items.forEach(it=>it.d());
+ drawOverlay(studs);
+ if(!S){ctx.fillStyle="#000a";ctx.font="bold 15px sans-serif";const m="按「▶ 開始上課」或「🧪 模擬試跑」，也可以載入紀錄重播";const w=ctx.measureText(m).width+20;ctx.beginPath();ctx.roundRect(W/2-w/2,H-36,w,28,8);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(m,W/2-w/2+10,H-17);}
+ requestAnimationFrame(render);}
+room.onclick=e=>{const r=room.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+ const hb=hitBubbles.slice().reverse().find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+ // one bubble at a time is brought to the front; clicking it again, or anywhere else, puts it back
+ if(hb){const was=expanded.has(hb.key);expanded.clear();if(!was)expanded.add(hb.key);selected=hb.key;renderDetail();return;}
+ expanded.clear();
+ let best=null,bd=50;for(const k in headPos){const p=headPos[k],d=Math.hypot(x-p.cx,y-(p.cy+16*K));if(d<bd){bd=d;best=k;}}
+ selected=best==null?null:(best==="T"?"T":+best);
+ // clicking a student toggles their name, attention bar and inner thoughts
+ if(typeof selected==="number"){if(shownInfo.has(selected)){shownInfo.delete(selected);}else shownInfo.add(selected);}
+ renderDetail();};
+function renderDetail(){if(selected==null){return;}const studs=S?S.students:previewStudents();const isT=selected==="T";const ag=isT?(S?S.teacher:teacherP):studs[selected];if(!ag)return;
+ const plan=S&&S.plan;const info=isT?`<b>${esc(ag.name)}</b>（老師）<br>風格：${esc(ag.style)}<br>資歷：${esc(ag.experience)}<br>教案目標：${esc(plan&&plan.goal)}<br>${((plan&&plan.segments)||[]).map(s=>`${s.start}-${s.end}分：${esc(s.activity)}`).join("<br>")}`
+ :`<b>${esc(ag.name)}</b>（${seatLabel(ag.seat)}）<br>個性：${esc(ag.personality)}<br>程度：${esc(ag.ability)}｜專注力：${esc(ag.attention)}<br>興趣：${esc(ag.interests)}<br>好友：${esc((ag.friends||[]).join("、")||"無")}<br>目前專注度：${ag.state?ag.state.attention:"-"}`;
+ const now=S?S.minute:0;const logs=((ag.log)||[]).filter(l=>l.min<=now).slice().reverse().map(l=>`<div class="act">[${l.min}分] ${esc((ACT_ZH[l.action]||T_ACT_ZH[l.action]||l.action))}${l.target?"→"+esc(l.target):""}：${esc(l.content)} <i>${esc(l.mood)}</i></div>`).join("");
+ $("detail").innerHTML=info+"<hr>"+(logs||"尚無紀錄");}
+function drawChart(){const w=cc.clientWidth,h=cc.clientHeight;cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,w,h);cx.fillStyle="#333";cx.font="12px sans-serif";cx.fillText("全班平均專注度（0-100）",40,13);
+ const y0=h-8,sc=(h-26)/100;cx.strokeStyle="#ddd";cx.lineWidth=1;[0,50,100].forEach(v=>{const y=y0-v*sc;cx.beginPath();cx.moveTo(30,y);cx.lineTo(w-8,y);cx.stroke();cx.fillStyle="#888";cx.fillText(v,4,y+4);});
+ if(!S||!S.attention.length)return;const tot=Math.max(1,S.meta.minutes);cx.strokeStyle="#2f7d4f";cx.fillStyle="#2f7d4f";cx.lineWidth=2;cx.beginPath();
+ S.attention.forEach((p,i)=>{const x=30+p.min/tot*(w-40),y=y0-p.value*sc;i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();S.attention.forEach(p=>{cx.fillRect(30+p.min/tot*(w-40)-2,y0-p.value*sc-2,4,4);});cx.lineWidth=1;}
+loadSettings();resize();requestAnimationFrame(render);
+</script></body></html>
