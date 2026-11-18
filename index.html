@@ -2,13 +2,16 @@
 <html lang="zh-Hant"><head><meta charset="utf-8"><title>AI 模擬教室</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;background:#eef1f5;color:#222;font-size:14px;overflow:hidden}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;background:#eef1f5;color:#222;font-size:14px;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button,canvas,#stage,#board,#controls,#fsBar,.bh,.mhead,.msec>h3,#boardGrip{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 header{background:#2d4a6b;color:#fff;height:42px;padding:0 12px;display:flex;align-items:center;gap:12px}
 header h1{font-size:17px;margin:0;white-space:nowrap}header .stat{font-size:12px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 button{cursor:pointer;border:1px solid #888;background:#fff;border-radius:5px;padding:4px 9px;font-size:13px;white-space:nowrap}button:disabled{opacity:.4;cursor:default}
 button.pri{background:#2f7d4f;color:#fff;border-color:#2f7d4f}button.fake{background:#7a4fb3;color:#fff;border-color:#7a4fb3}button.sm{padding:1px 6px;font-size:12px}
-main{display:grid;grid-template-columns:320px 1fr 290px;gap:8px;padding:8px;height:calc(100% - 42px)}
-body.nosettings main{grid-template-columns:1fr 290px}body.nosettings #settings{display:none}
+main{display:grid;grid-template-columns:320px 1fr;gap:8px;padding:8px;height:calc(100% - 42px)}
+body.nosettings main{grid-template-columns:1fr}body.nosettings #settings{display:none}
+#observe{display:grid;grid-template-columns:1fr 290px;gap:8px;min-width:0;min-height:0;height:100%}
+#fsBar{display:none}
 .panel{background:#fff;border-radius:8px;padding:8px;overflow:auto;box-shadow:0 1px 3px #0002;min-height:0}
 .panel h3{margin:4px 0 6px;font-size:14px;border-bottom:1px solid #ddd;padding-bottom:3px}
 label{display:block;font-size:12px;margin-top:5px;color:#444}input,select,textarea{width:100%;font-size:12px;padding:3px;border:1px solid #bbb;border-radius:4px}
@@ -22,8 +25,15 @@ textarea{font-family:monospace;height:140px}.row{display:flex;gap:6px}.row>*{fle
 #controls{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
 #stage{flex:1;position:relative;min-height:0;background:#cfd8e3;border-radius:8px;overflow:hidden}#room{position:absolute;left:0;top:0;width:100%;height:100%;cursor:pointer}
 #topLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3}
-#board{position:absolute;left:8px;top:8px;width:min(250px,30%);background:#24412fee;color:#f3f3e0;border-radius:6px;font:12px sans-serif;z-index:2;box-shadow:0 1px 4px #0004}
-#board .bh{color:#ffe9a8;font-weight:bold;padding:5px 8px 3px}#boardBody{max-height:92px;overflow-y:auto;overscroll-behavior:contain;padding:0 8px 6px;white-space:pre-wrap;line-height:15px;scrollbar-width:thin;scrollbar-color:#9bb #24412f}
+#board{position:absolute;left:8px;top:8px;width:var(--board-w,min(250px,30%));background:#24412fee;color:#f3f3e0;border-radius:6px;font:12px sans-serif;z-index:2;box-shadow:0 1px 4px #0004}
+#board .bh{color:#ffe9a8;font-weight:bold;padding:5px 8px;cursor:pointer;display:flex;align-items:center;gap:6px;min-height:28px;-webkit-tap-highlight-color:transparent}
+#board .bh .bchev{margin-left:auto;opacity:.85;font-size:11px}
+#boardBody{max-height:var(--board-h,92px);overflow-y:auto;overscroll-behavior:contain;padding:0 8px 6px;white-space:pre-wrap;line-height:15px;scrollbar-width:thin;scrollbar-color:#9bb #24412f}
+#board.collapsed{width:auto;max-width:80%}#board.collapsed #boardBody,#board.collapsed #boardGrip{display:none}
+#boardGrip{position:absolute;right:2px;bottom:1px;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,#ffe9a888 50%);border-radius:0 0 6px 0}
+.tap-ring{position:absolute;left:0;top:0;width:44px;height:44px;margin:-22px 0 0 -22px;border:3px solid #3b82f6;border-radius:50%;box-shadow:0 0 0 3px rgba(59,130,246,.25);pointer-events:none;z-index:6;opacity:0;transform:scale(.45)}
+.tap-ring.show{animation:tapRipple .4s ease-out forwards}
+@keyframes tapRipple{0%{opacity:.9;transform:scale(.45)}100%{opacity:0;transform:scale(1.3)}}
 #chart{width:100%;height:84px;background:#fff;border-radius:8px;flex:none}
 #log div{border-bottom:1px dotted #ddd;padding:2px 0;font-size:12px}.t{color:#888}.err{color:#c00}.tch{color:#1a4d8f;font-weight:bold}
 #detail{font-size:12px}#detail .act{border-left:3px solid #6a9;padding-left:4px;margin:3px 0}
@@ -36,10 +46,11 @@ details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
  html,body{height:auto}body{overflow-x:hidden;overflow-y:auto}
  header{position:sticky;top:0;z-index:10;height:38px;padding:0 8px;gap:8px}header h1{font-size:15px}#usage,#btnToggle{display:none}
  main{display:flex;flex-direction:column;height:auto;padding:6px;gap:6px}
+ #observe{display:flex;flex-direction:column;gap:6px;height:auto;min-height:0;order:1}
  #center{order:1}#side{order:2}#settings{order:3}body.nosettings #settings{display:block}
  #stage{order:1;flex:none;width:100%;aspect-ratio:820/525}#controls{order:2}#errbar{order:3}#chart{order:4;height:64px}
  #controls{gap:5px}#controls button{padding:7px 9px;font-size:13px;min-height:38px}#controls label{font-size:13px;padding:6px 2px}#controls select{min-height:34px;font-size:14px}#mode{flex-basis:100%}
- #board{width:min(190px,40%);font-size:11px}#boardBody{max-height:56px;line-height:14px}
+ #board{width:var(--board-w,min(148px,44%));font-size:11px}#boardBody{max-height:var(--board-h,40px);line-height:13px}#board .bh{min-height:26px;padding:4px 7px}
  .panel{overflow:visible;padding:4px 8px}
  .mhead,.msec>h3{display:flex;align-items:center;min-height:42px;margin:0;font-size:15px;font-weight:bold;cursor:pointer;border-bottom:none;-webkit-tap-highlight-color:transparent}
  .mhead::after,.msec>h3::after{content:"▸";margin-left:auto;color:#668}#settings.open>.mhead::after,.msec.open>h3::after{content:"▾"}
@@ -51,6 +62,38 @@ details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
  #center{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:6px;align-items:start}
  #stage{grid-column:1;grid-row:1/4;width:auto;height:calc(100vh - 50px);height:calc(100dvh - 50px);max-width:66vw}
  #controls,#errbar,#chart{grid-column:2}#chart{width:100%}
+}
+/* fullscreen observe (native Fullscreen API or iOS CSS fallback) */
+#observe.fs-on{position:fixed;inset:0;z-index:1000;width:100vw;height:100vh;height:100dvh;margin:0;padding:0;gap:0;background:#1a2430;
+ display:grid!important;grid-template-columns:1fr 300px;grid-template-rows:auto 1fr;min-height:0}
+#observe.fs-on.side-hidden{grid-template-columns:1fr 0px}
+#observe.fs-on #fsBar{display:flex;align-items:center;gap:8px;grid-column:1/-1;grid-row:1;padding:6px 10px;background:#24344a;color:#fff;flex-wrap:wrap;min-height:40px;z-index:2}
+#observe.fs-on #fsBar button{background:#fff;min-height:32px}#observe.fs-on #fsBar button.on{background:#dbeafe;border-color:#3b82f6}
+#observe.fs-on #fsStat{font-size:12px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+#observe.fs-on #center{display:contents}
+#observe.fs-on #controls,#observe.fs-on #chart,#observe.fs-on #errbar{display:none!important}
+#observe.fs-on #stage{grid-column:1;grid-row:2;border-radius:0;width:auto;height:auto;min-width:0;min-height:0;aspect-ratio:auto;max-width:none}
+#observe.fs-on #side{grid-column:2;grid-row:2;min-height:0;min-width:0;margin:0;border-radius:0;max-height:none;overflow:auto;display:flex;flex-direction:column}
+#observe.fs-on.side-hidden #side{display:none!important}
+#observe.fs-on .msec{display:block;border-top:1px solid #e3e6ea;flex:1 1 auto;min-height:0;overflow:auto}
+#observe.fs-on .msec:first-child{border-top:none}
+#observe.fs-on .msec>h3{display:flex;align-items:center;cursor:pointer;margin:0;padding:8px;font-size:14px;border-bottom:none;-webkit-tap-highlight-color:transparent}
+#observe.fs-on .msec>h3::after{content:"▸";margin-left:auto;color:#668}
+#observe.fs-on .msec.open>h3::after{content:"▾"}
+#observe.fs-on .msec:not(.open)>:not(h3){display:none!important}
+#observe.fs-on .msec.open #detail,#observe.fs-on .msec.open #log{max-height:none!important;flex:1}
+body.fs-on{overflow:hidden}
+@media (max-width:760px){
+ #observe.fs-on{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+ #observe.fs-on #stage{grid-column:1;grid-row:2}
+ #observe.fs-on #side{grid-column:1;grid-row:3;max-height:36vh}
+ #observe.fs-on.side-hidden{grid-template-rows:auto 1fr}
+}
+@media (max-height:520px) and (orientation:landscape){
+ #observe.fs-on{grid-template-columns:1fr 260px;grid-template-rows:auto 1fr}
+ #observe.fs-on #stage{grid-column:1;grid-row:2;height:auto;max-width:none;width:auto}
+ #observe.fs-on #side{grid-column:2;grid-row:2;max-height:none}
+ #observe.fs-on.side-hidden{grid-template-columns:1fr}
 }
 </style></head><body>
 <header><button class="sm" id="btnToggle" title="顯示／隱藏設定">⚙️ 設定</button><h1>🏫 AI 模擬教室</h1>
@@ -78,26 +121,28 @@ details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
 <h3 style="margin-top:10px">📁 紀錄</h3>
 <div style="display:flex;gap:4px;flex-wrap:wrap"><button id="btnExport">⬇️ 匯出紀錄 JSON</button><button id="btnLoad">⬆️ 載入紀錄重播（離線）</button><input type="file" id="file" accept=".json" style="display:none"></div>
 </div>
+<div id="observe"><div id="fsBar"><button id="btnFsExit" title="退出全螢幕">⛶ 退出全螢幕</button><button id="btnSide" class="on" title="顯示或隱藏右側觀察面板">📋 觀察面板</button><span id="fsStat"></span></div>
 <div id="center">
 <div id="controls"><button class="pri" id="btnStart">▶ 開始上課</button><button class="fake" id="btnFake" title="不用金鑰、不用網路的假 AI，用來測試流程">🧪 模擬試跑</button><button id="btnPause" disabled>⏸ 暫停</button><button id="btnStep" disabled>⏭ 單步</button><button id="btnStop" disabled>⏹ 結束</button><button id="btnReplay" style="display:none" title="從頭再播一次載入的紀錄">🔁 重新播放</button>
 <label style="display:inline;margin:0"><input type="checkbox" id="showAll" style="width:auto;vertical-align:middle"> 顯示全部資訊</label> <label style="display:inline;margin:0">速度 <select id="speed" style="width:auto"><option value="4000">慢</option><option value="2000" selected>1x</option><option value="700">快</option><option value="0">最快</option></select></label>
+<button id="btnFull" title="全螢幕觀察教室，右邊仍可看事件紀錄與角色詳情">⛶ 全螢幕觀察</button>
 <span id="mode" style="font-size:12px;color:#555"></span></div>
 <div id="errbar"></div>
-<div id="stage"><canvas id="room"></canvas><canvas id="topLayer"></canvas><div id="board"><div class="bh">🧑‍🏫 黑板 <span id="boardMin"></span></div><div id="boardBody">（空）</div></div></div>
+<div id="stage"><canvas id="room"></canvas><canvas id="topLayer"></canvas><div id="board"><div class="bh" id="boardHead" role="button" tabindex="0" title="點一下收合或展開黑板紀錄" aria-expanded="true">🧑‍🏫 黑板 <span id="boardMin"></span><span class="bchev" id="boardChev">▾</span></div><div id="boardBody">（空）</div><div id="boardGrip" title="拖曳調整大小"></div></div><div id="tapRing" class="tap-ring" aria-hidden="true" data-active="0"></div></div>
 <canvas id="chart"></canvas>
 </div>
 <div class="panel" id="side" style="display:flex;flex-direction:column">
 <section class="msec" id="secDetail"><h3>🧑‍🎓 角色詳情（點教室裡的人）</h3><div id="detail" style="max-height:45%;overflow:auto">點選任一位學生或老師，可以看人設和行為紀錄。點對話框可以展開完整內容。</div></section>
 <section class="msec" id="secLog"><h3>📜 事件紀錄（全班）</h3><div id="log" style="flex:1;overflow:auto"></div></section>
-</div></main>
+</div></div></main>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
 const PRESETS={openai:{url:"https://api.openai.com/v1",model:"gpt-4o-mini"},gemini:{url:"https://generativelanguage.googleapis.com/v1beta/openai",model:"gemini-3.1-flash-lite",sModel:"gemini-3.1-flash-lite",conc:1,hint:"免費可用：gemini-3.1-flash-lite（穩定）；老師也可試 gemini-3-flash-preview"},ollama:{url:"http://localhost:11434/v1",model:"llama3.1"},custom:{url:"http://localhost:8787/v1",model:"mock"}};
 const ACTIONS={wait:"⏳",listen:"👂",notes:"📝",ask:"✋",answer:"🙋",chat:"💬",daydream:"🤔",phone:"📱",sleep:"💤",other:"❔"};
 const ACT_ZH={wait:"等同學回話",listen:"聽課",notes:"抄筆記",ask:"舉手發問",answer:"回答",chat:"跟同學聊天",daydream:"發呆",phone:"滑手機",sleep:"睡覺",other:"其他"};
-const T_ICON={lecture:"🗣️",question:"❓",call_on:"👉",discipline:"⚠️",write_board:"✍️",answer:"💡",feedback:"👍",activity:"🧪",patrol:"🚶"};
-const T_ACT_ZH={lecture:"講課",question:"提問",call_on:"點名",discipline:"管秩序",write_board:"寫黑板",answer:"回答問題",feedback:"回應學生",activity:"帶活動",patrol:"下台巡堂"};
+const T_ICON={lecture:"🗣️",question:"❓",call_on:"👉",discipline:"⚠️",write_board:"✍️",answer:"💡",feedback:"👍",activity:"🧪",patrol:"🚶",dismiss:"🔔"};
+const T_ACT_ZH={lecture:"講課",question:"提問",call_on:"點名",discipline:"管秩序",write_board:"寫黑板",answer:"回答問題",feedback:"回應學生",activity:"帶活動",patrol:"下台巡堂",dismiss:"宣布下課"};
 const SPOKEN=new Set(["ask","answer","chat"]);
 const MAX_SEATS=12;
 const DEFAULT_PERSONAS=[
@@ -269,12 +314,16 @@ function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
  if(ctx.kind==="plan")return fakePlan();
  if(ctx.kind==="tanswer"){const q=ctx.st;return {content:`${q.name}問得好！`+(buoy?pick(["浮力只跟液體密度和排開的體積有關，跟物體多重沒有直接關係。","鐵塊會沉，是因為它排開的水太少，浮力比重量小。","公式是 B = ρ液 × V排 × g，等一下我們一起算一題。"]):pick([`關鍵是先看清楚條件，再對照黑板上「${kw}」的規律。`,"這個等一下做例題你就會懂。","先把題目的條件圈出來，再一步一步來。"]))};}
  if(ctx.kind==="reply"){const B=ctx.st,d=threadDepth(B.name,ctx.from.name);
+  if(ctx.Ts&&ctx.Ts.action==="dismiss")return {action:"chat",target:ctx.from.name,content:pick(["好啊，去福利社！","走啊！","終於下課了！","好，一起走","呼，好餓，先去買吃的"]),mood:"開心",attention:Math.max(30,B.state.attention??60)};
   if(B.state.action==="sleep"&&Math.random()<.7)return {action:"sleep",content:"Zzz…（沒聽到）",mood:"想睡",attention:B.state.attention};
   if(Math.random()<.85)return {action:"chat",target:ctx.from.name,content:fakeReplyLine(ctx.msg,d),mood:"開心",attention:Math.max(20,(B.state.attention??60)-5)};
   return {action:"listen",content:`先不要理${ctx.from.name}，老師在看…`,mood:"緊張",attention:Math.min(95,(B.state.attention??60)+5)};}
 
  const studs=S.students,T=S.teacher;
  if(ctx.kind==="teacher"){const m=ctx.m;
+  if(ctx.dismiss){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
+   const sum=buoy?"今天我們學了浮力：它只跟液體密度和排開的體積有關。":`今天我們把「${kw}」的重點整理過了。`;
+   return {action:"dismiss",target:"",content:sum+"好，今天就上到這裡，同學們下課囉！",board:"",mood:"輕鬆"};}
   // the teacher only reacts to what students are doing RIGHT NOW (the states on screen); otherwise follows the lesson script
   const bad=studs.filter(s=>["sleep","phone"].includes(s.state.action)),chatters=studs.filter(s=>s.state.action==="chat"),
    askers=studs.filter(s=>s.state.action==="ask"&&!(S._answered&&S._answered.has(s.name))),answerers=studs.filter(s=>s.state.action==="answer"&&/老師|^$/.test(s.state.target||""));
@@ -289,6 +338,7 @@ function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
   return {action:r.action,target:r.target||"",content:r.content,board:r.board||"",mood:pick(["平靜","有耐心","開心","認真"])};}
  // student: reacts to the teacher's CURRENT utterance and to classmates who just talked to them
  const st=ctx.st,P=st.state,Ts=ctx.Ts,span={"很短":-10,"短":-5,"中":-1,"長":3}[st.attention]??-2;
+ if(Ts&&Ts.action==="dismiss")return fakeDismissStudent(st);
  let att=(P.attention??70)+span+(Math.random()*24-12);
  const toMe=Ts.target===st.name,talkers=talkersOf(st);
  if(["write_board","question"].includes(Ts.action))att+=6;if(Ts.action==="patrol")att+=4;
@@ -312,13 +362,35 @@ function fakeAI(ctx){const kw=kwOf(),buoy=/浮力/.test(S.meta.topic);
  att=Math.max(3,Math.min(98,att));if(a==="sleep")att=Math.min(att,15);if(a==="phone")att=Math.min(att,35);
  const mood={listen:"普通",notes:"認真",ask:"好奇",answer:"緊張",chat:"開心",daydream:"放空",phone:"偷偷的",sleep:"想睡"}[a];
  return {action:a,target,content,mood,attention:Math.round(att)};}
+// personality-consistent reactions when the teacher announces dismissal
+function fakeDismissStudent(st){const kw=kwOf(),it=(st.interests||"").split(/[、,，]/)[0]||"休息",P=st.state,nb=neighbours(st),fr=(st.friends||[]).filter(f=>nb.includes(f)),pal=fr.length?fr:nb;
+ const sleepy=/睡|熬夜|想睡/.test(st.personality||"")||P.action==="sleep";
+ const diligent=/認真|班長|負責|好奇|冷靜|理性|努力/.test(st.personality||"")||/優秀|中上/.test(st.ability||"");
+ const lively=/活潑|搞笑|愛講話|人緣/.test(st.personality||"");
+ const rebel=/叛逆|無聊/.test(st.personality||"");
+ const shy=/害羞|文靜|沒自信/.test(st.personality||"");
+ const distract=/分心|追星/.test(st.personality||"");
+ let a="listen",target="",content="終於下課了！",mood="開心";
+ if(sleepy){a="listen";content=pick(["啊？下課了喔…","嗯？已經下課了？","啊，我剛剛好像睡著了…"]);mood="迷糊";}
+ else if(shy&&diligent){a="listen";content=pick(["今天好像有聽懂一點…","呼，今天有認真聽","今天的重點我再回去看一次"]);mood="安心";}
+ else if(diligent){a=/冷靜|理性|話少/.test(st.personality||"")?"listen":pick(["notes","listen"]);content=pick([`今天學到${kw}了`,`嗯，今天「${kw}」的重點我懂了`,"回家再把筆記整理一下","今天的課好充實"]);mood="滿足";}
+ else if(shy){a="daydream";content=pick(["呼～總算結束了","呼～好餓","今天還好沒被點到…"]);mood="放鬆";}
+ else if(lively&&pal.length){a="chat";target=pick(pal);content=pick(["終於下課了！走啊！","走，去福利社！","等等要不要一起吃飯？","走，去外面晃晃！"]);mood="興奮";}
+ else if(distract){if(pal.length&&Math.random()<.6){a="chat";target=pick(pal);content=pick(["走，去福利社！","終於下課了！先看一下手機～","等等等我一下！"]);mood="開心";}
+  else{a="phone";content=pick(["終於可以看一下手機了！",`${it}的消息更新了吧？`,"先回一下訊息"]);mood="開心";}}
+ else if(rebel){if(pal.length&&Math.random()<.5){a="chat";target=pick(pal);content=pick(["終於解脫了！走啊","走，下課！"]);mood="解脫";}
+  else{a="daydream";content=pick(["終於解脫了！","終於下課了！","媽呀，這堂課超長"]);mood="解脫";}}
+ else if(pal.length&&Math.random()<.5){a="chat";target=pick(pal);content=pick(["走，去福利社！","呼～好餓，先去買吃的","終於下課了！要不要一起走？"]);mood="開心";}
+ else{a="listen";content=pick(["終於下課了！","呼～好餓","可以休息了"]);mood="輕鬆";}
+ const att=sleepy?Math.min(45,(P.attention||40)+15):Math.min(80,Math.max(35,P.attention||60));
+ return {action:a,target,content,mood,attention:Math.round(att)};}
 // ---------- simulation ----------
 let S=null,running=false,paused=false,stepReq=false,replay=null,selected=null;
 function seatXZ(seat){return {x:245+Math.floor(seat/3)*155,z:110+(seat%3)*190};}
 function newState(fake){
  if($("randomize").checked){personas=randomPersonas(personas.length||10);renderCards();savePersonas();}
  const ps=fixSeats(personas.map(p=>normPersona({...p})));
- return {meta:{version:2,created:new Date().toISOString(),topic:$("topic").value,minutes:Math.max(1,+$("minutes").value||10),tick:Math.max(1,+$("tick").value||1),fake:!!fake,
+ return {meta:{version:3,created:new Date().toISOString(),topic:$("topic").value,minutes:Math.max(1,+$("minutes").value||10),tick:Math.max(1,+$("tick").value||1),fake:!!fake,
   model:fake?{teacher:"內建假 AI",student:"內建假 AI"}:{teacher:$("tModel").value,student:$("sModel").value||$("tModel").value},provider:fake?"fake":$("provider").value},
  teacher:{...teacherP,memory:[],state:{action:"lecture",target:"",content:"",mood:"平靜"},log:[]},plan:null,blackboard:"",
  students:ps.map(p=>({...p,memory:[],state:{action:"listen",target:"",content:"",mood:"普通",attention:70},log:[]})),
@@ -348,12 +420,19 @@ function validateTeacher(r,m){const studs=S.students;let a=T_ACT_ZH[r.action]?r.
  else target="";
  // a student who just answered/asked must get a response before the teacher moves on
  const ans=studs.filter(s=>s.state.action==="answer"),ask=studs.filter(s=>s.state.action==="ask"&&!(S._answered&&S._answered.has(s.name)));
- if(ans.length&&!["feedback","answer","discipline"].includes(a)&&!content.includes(ans[0].name)){const t=ans[0];a="feedback";target=t.name;content=`${t.name}，謝謝你的回答。`+content;}
- else if(!S.meta.fake&&ask.length&&!["feedback","answer","discipline"].includes(a)&&!ask.some(s=>content.includes(s.name))){const t=ask[0];content=`${t.name}的問題很好，我等一下會回答。`+content;}
+ if(a!=="dismiss"&&ans.length&&!["feedback","answer","discipline"].includes(a)&&!content.includes(ans[0].name)){const t=ans[0];a="feedback";target=t.name;content=`${t.name}，謝謝你的回答。`+content;}
+ else if(a!=="dismiss"&&!S.meta.fake&&ask.length&&!["feedback","answer","discipline"].includes(a)&&!ask.some(s=>content.includes(s.name))){const t=ask[0];content=`${t.name}的問題很好，我等一下會回答。`+content;}
  return {action:a,target,content,board:r.board||"",mood:r.mood||""};}
-async function teacherTurn(m){const T=S.teacher;
+async function teacherTurn(m,opts){const T=S.teacher,dismiss=!!(opts&&opts.dismiss);
  const sys=`你是${T.name}，台灣國中老師。風格：${T.style}。你正在教「${S.meta.topic}」。請用繁體中文，只輸出一個 JSON 物件。`;
- const said=S.students.filter(s=>["ask","answer"].includes(s.state.action)&&s.state.content).map(s=>`${s.name}${ACT_ZH[s.state.action]}：「${s.state.content}」`+(S._answered&&S._answered.has(s.name)?"（你剛剛已經當場回答過了，不用再回答）":"")).join("；");
+ let r;
+ if(dismiss){const u=`現在已經到了這堂課的下課時間（共 ${S.meta.minutes} 分鐘上完）。教案目標：${(S.plan&&S.plan.goal)||""}。已經講過的內容：${(S.covered||[]).join("；")||"（略）"}。
+請宣布下課。action 必須是 dismiss。content 先用一句話簡單整理今天的重點，接著一定要說「好，今天就上到這裡，同學們下課囉！」或意思相同、口語自然的下課宣告（一定要包含「下課」）。不要再講新教材、不要點名、不要管秩序、不要提問。
+輸出：{"action":"dismiss","target":"","content":"你說的話（2 句左右）","board":"","mood":"心情"}`;
+  let raw={};try{raw=await chat(S.meta.model.teacher,sys,u,{kind:"teacher",m,dismiss:true})||{};}catch(e){raw={};}
+  const c=String(raw.content||"").trim();
+  r={action:"dismiss",target:"",board:"",mood:raw.mood||"輕鬆",content:/下課/.test(c)?c:`${c?c.replace(/[。！!?]?$/,"。"):"今天的重點大家都聽到了。"}好，今天就上到這裡，同學們下課囉！`};}
+ else{const said=S.students.filter(s=>["ask","answer"].includes(s.state.action)&&s.state.content).map(s=>`${s.name}${ACT_ZH[s.state.action]}：「${s.state.content}」`+(S._answered&&S._answered.has(s.name)?"（你剛剛已經當場回答過了，不用再回答）":"")).join("；");
  const bad=S.students.filter(s=>MISBEHAVE.has(s.state.action)).map(s=>`${s.name}(${ACT_ZH[s.state.action]})`).join("、");
  const u=`現在是第 ${m} 分鐘（共 ${S.meta.minutes} 分鐘）。教案目標：${S.plan.goal}。這段該做：${curSegment(m)}。
 本段要講的重點：${(((S.plan.segments||[]).find(s=>m>=s.start&&m<s.end)||{}).points||[]).join("；")||"（自行決定）"}
@@ -365,10 +444,10 @@ async function teacherTurn(m){const T=S.teacher;
 你最近記得的事：${T.memory.join(" / ")||"無"}
 規則：大部分回合要「講課」，content 必須是 2～4 句有實質知識內容的話（定義、原理、公式、數字、生活例子、解題步驟），依教案順序推進到下一個還沒講過的重點，不要重複已講過的內容；需要時用 write_board 把重點寫上黑板。discipline 只能針對「目前不專心的學生」名單裡的人；有學生剛回答就用 feedback 回應他，有學生發問就用 answer 回答他；大部分時間待在講台，巡堂(patrol)偶爾才做。
 請決定這一分鐘你要做什麼。輸出：{"action":"lecture|question|call_on|discipline|write_board|answer|feedback|activity|patrol","target":"對象學生姓名，沒有就空字串","content":"你說的話（2-4 句，有實質內容）","board":"要寫在黑板上的字，不寫就空字串","covered":"這回合講完的重點（簡短）","mood":"心情"}`;
- const raw=await chat(S.meta.model.teacher,sys,u,{kind:"teacher",m});const r=validateTeacher(raw,m);if(raw.covered)S.covered=(S.covered||[]).concat(String(raw.covered)).slice(-12);
+ const raw=await chat(S.meta.model.teacher,sys,u,{kind:"teacher",m});r=validateTeacher(raw,m);if(raw.covered)S.covered=(S.covered||[]).concat(String(raw.covered)).slice(-12);
  if(r.action==="question"&&S.meta.fake)S._responders=new Set(S.students.filter(s=>!["sleep","phone"].includes(s.state.action)).sort((x,y)=>(y.state.attention+Math.random()*40)-(x.state.attention+Math.random()*40)).slice(0,1+(Math.random()<.4?1:0)).map(s=>s.name));
- if(r.action==="patrol")S._lastPatrol=m;
- T.state={action:r.action,target:r.target,content:r.content,mood:r.mood};
+ if(r.action==="patrol")S._lastPatrol=m;}
+ T.state={action:r.action,target:r.target||"",content:r.content,mood:r.mood};
  if(r.board){S.blackboard=(S.blackboard+"\n"+r.board).trim().split("\n").slice(-6).join("\n");}
  T.log.push({min:m,...T.state});remember(T,`第${m}分 我${T_ACT_ZH[T.state.action]}${T.state.target?"→"+T.state.target:""}：${T.state.content}`);
  addEvent(m,T.name,`【${T_ACT_ZH[T.state.action]}${T.state.target?"→"+T.state.target:""}】${T.state.content}`,"tch");}
@@ -377,7 +456,8 @@ async function studentTurn(st,m,Tstate){
  const talkers=talkersOf(st);
  const others=S.students.filter(o=>o!==st).map(o=>`${o.name}:${ACT_ZH[o.state.action]||o.state.action}`).join("；");
  const toMe=Tstate.target===st.name;
- const hint=toMe&&Tstate.action==="call_on"?"⚠️ 老師點你回答問題，你必須回答老師（action 用 answer，target 填「老師」）。"
+ const hint=Tstate.action==="dismiss"?"⚠️ 老師剛剛宣布下課了。請用符合你個性的方式做出下課反應：可以在心裡想（listen/daydream/notes，content 寫想法，例如「終於下課了！」「呼～好餓」「今天學到……了」），或跟旁邊的朋友聊天約放學後要做什麼（chat，例如去福利社）。如果剛才在睡覺，請醒來並有反應（不要繼續睡）。不要再發問或回答課業問題。"
+  :toMe&&Tstate.action==="call_on"?"⚠️ 老師點你回答問題，你必須回答老師（action 用 answer，target 填「老師」）。"
   :toMe&&Tstate.action==="discipline"?`⚠️ 老師正在糾正你（你剛剛在${ACT_ZH[st.state.action]}），請對此做出反應（例如停下來、道歉、或不情願地照做）。`
   :toMe&&["feedback","answer"].includes(Tstate.action)?"老師正在回應你剛剛說的話。"
   :Tstate.action==="question"?"老師剛問全班一個問題，你可以舉手發問(ask)、直接回答(answer, target 填「老師」)，或不理他。":"";
@@ -400,6 +480,8 @@ function validateStudent(st,r,Ts){let a=ACTIONS[r.action]?r.action:"listen";let 
  if(a==="answer"||a==="ask")target="老師";
  if(a==="chat"&&!names.includes(target)){const talkers=talkersOf(st);const nb=neighbours(st);
   target=talkers.length?talkers[0].name:nb.length?pick(nb):"";if(!target)a="daydream";}
+ if(Ts.action==="dismiss"){if(a==="sleep"){a="listen";if(!/下課|醒|啊？/.test(r.content||""))r={...r,content:"啊？下課了喔…"};}
+  if(a==="ask"||a==="answer"||a==="wait"){a="listen";if(!/下課|學到|終於|好餓/.test(r.content||""))r={...r,content:"終於下課了！"};target="";}}
  if(!["chat","ask","answer"].includes(a))target="";
  return {...r,action:a,target};}
 function applyStudent(st,r,m){const T=S.teacher;const a=r.action;
@@ -428,7 +510,7 @@ async function replyTurn(B,A,msg,m,Ts){
  const sys=`你在扮演台灣國中生「${B.name}」。個性：${B.personality}；興趣：${B.interests}；好朋友：${(B.friends||[]).join("、")||"無"}。請用繁體中文、口語，只輸出一個 JSON 物件。`;
  const u=`第 ${m} 分鐘，上「${S.meta.topic}」。老師現在正在${T_ACT_ZH[Ts.action]||""}：「${Ts.content}」。
 你現在正在：${ACT_ZH[B.state.action]||B.state.action}。
-同學 ${A.name} 剛剛小聲跟你說：「${msg}」，他正在等你回答。
+同學 ${A.name} 剛剛小聲跟你說：「${msg}」，他正在等你回答。${Ts.action==="dismiss"?"老師已經宣布下課了，請用下課的心情回他（不要繼續睡覺）。":""}
 你可以回他（action 用 chat、target 填「${A.name}」、content 是你回的一句話），或不理他（action 用 listen/notes/sleep 等，content 寫你心裡的想法）。
 輸出：{"action":"chat|listen|notes|daydream|phone|sleep","target":"","content":"一句話","mood":"心情","attention":0到100的整數}`;
  const r=await chat(S.meta.model.student,sys,u,{kind:"reply",st:B,from:A,msg,m,Ts});
@@ -480,7 +562,7 @@ async function runStudentTimeline(m,Ts,span){
  const off=spreadOffsets(n,span),seq=S._seq=[],revealed=new Array(n).fill(null),locked=new Set(),addressed=new Set(),jobs=[];
  const stamp=()=>({ms:Math.round(now()),f:span?+(now()/span).toFixed(3):0});
  // someone who started a chat last turn and got no answer keeps waiting — shown right away, before anyone can reply
- const waiters={};studs.forEach((st,i)=>{const ps=st.state;if(ps.action==="chat"&&ps.initiated&&!ps.isReply){const B=studs[idx(ps.target)];
+ const waiters={};if(Ts.action!=="dismiss")studs.forEach((st,i)=>{const ps=st.state;if(ps.action==="chat"&&ps.initiated&&!ps.isReply){const B=studs[idx(ps.target)];
   if(B&&!(B.state.action==="chat"&&B.state.target===st.name)){waiters[i]={action:"wait",target:B.name,content:`等${B.name}回我…`,mood:"期待",attention:ps.attention,pendingMsg:ps.content};off[i]=0;locked.add(i);}}});
  // students the teacher is talking to this turn can't be pulled into a chat; they owe the teacher a reaction
  studs.forEach((st,i)=>{if(Ts.target===st.name)locked.add(i);});
@@ -534,6 +616,19 @@ async function runSim(fake){lastReplay=null;saveSettings();$("log").innerHTML=""
   const span=D?Math.max(D*.85,talk-D*.1):0;// stretch the turn so every sentence can be read; students react in between
   const tl=await runStudentTimeline(m,Ts,span);
   snapshotFrame(m,tl.order,tl.seq,{span:Math.round(span),cues:tl.cues});drawChart();renderDetail();stepping=false;}
+ // ---------- end-of-class dismissal (v13) ----------
+ if(running){const m=S.meta.minutes;S.minute=m;S._responders=null;
+  while(paused&&!stepReq&&running)await sleep(100);stepping=stepReq;stepReq=false;
+  if(running){const D=tickMs();
+   $("stat").textContent="下課鈴響，老師宣布下課…";if(!S.meta.fake)PROG={m,done:0,total:1+S.students.length,active:[]};
+   try{await teacherTurn(m,{dismiss:true});}catch(e){showErr("下課宣告失敗："+e.message);addEvent(m,"系統","下課宣告失敗："+e.message,"err");
+    const T=S.teacher;T.state={action:"dismiss",target:"",content:"好，今天就上到這裡，同學們下課囉！",mood:"輕鬆"};T.log.push({min:m,...T.state});addEvent(m,T.name,`【宣布下課】${T.state.content}`,"tch");}
+   addEvent(m,"課堂","🔔 下課","tch");
+   teacherGo(S.teacher.state);const talk=startSpeech(S.teacher.state.content);
+   $("stat").textContent="下課！同學們的反應…";
+   const Ts={...S.teacher.state};const span=D?Math.max(D*.85,talk-D*.1):0;
+   const tl=await runStudentTimeline(m,Ts,span);
+   snapshotFrame(m,tl.order,tl.seq,{span:Math.round(span),cues:tl.cues,dismiss:true});drawChart();renderDetail();stepping=false;}}
  finish();}
 function finish(){PROG=null;running=false;paused=false;setButtons();if(S){S.meta.usage={...usage};$("stat").textContent=`下課！共 ${S.frames.length} 回合`;$("mode").textContent=S.frames.length?"✅ 已完成，可匯出紀錄":"";}window.__runDone=true;}
 function setButtons(){const busy=running||!!replay;$("btnReplay").style.display=lastReplay?"":"none";$("btnReplay").disabled=running;["btnStart","btnFake","btnLoad"].forEach(b=>$(b).disabled=busy);["btnPause","btnStep","btnStop"].forEach(b=>$(b).disabled=!busy);$("btnPause").textContent=paused?"▶ 繼續":"⏸ 暫停";}
@@ -564,7 +659,7 @@ async function startReplay(data){if(!data.frames||!data.students)throw new Error
   const D=tickMs()||60;
   S.minute=fr.min;S.blackboard=fr.blackboard||"";S.teacher.state=fr.teacher;teacherGo(fr.teacher);const talk=startSpeech(fr.teacher.content);const span=Math.max(D*.85,talk-D*.1);
   const mine=evs.filter(ev=>ev.min===fr.min);const tAns=mine.filter(ev=>!sNames.has(ev.who)&&/^【當場回答→/.test(ev.text));mine.filter(ev=>!sNames.has(ev.who)&&!tAns.includes(ev)).forEach(ev=>{S.events.push(ev);renderEvent(ev);});
-  $("stat").textContent=`重播：第 ${fr.min} / ${data.meta.minutes} 分鐘`;
+  $("stat").textContent=(fr.dismiss||(fr.teacher&&fr.teacher.action==="dismiss"))?`重播：下課`:`重播：第 ${fr.min} / ${data.meta.minutes} 分鐘`;
   let seq=fr.seq;
   if(!seq){const ks=(fr.order||shuffle(fr.students.map((_,k)=>k))).filter(k=>S.students[k]&&fr.students[k]);const off=spreadOffsets(ks.length,1).sort((a,b)=>a-b);seq=ks.map((k,j)=>({i:k,f:off[j],state:fr.students[k]}));}
   const evq={};mine.filter(ev=>sNames.has(ev.who)).forEach(ev=>(evq[ev.who]=evq[ev.who]||[]).push(ev));const t0=clockNow(),stop=()=>replay.stop;
@@ -853,7 +948,18 @@ function updateBoard(){const body=$("boardBody"),txt=(S&&S.blackboard)||"（空�
  if(old===txt)return;const follow=!old||!txt.startsWith(old)||body.scrollTop+body.clientHeight>=body.scrollHeight-4;
  body.textContent=txt;body.dataset.t=txt;if(follow)body.scrollTop=body.scrollHeight;}
 // the board card sits above the canvas: forward clicks to the canvas so a focused bubble on top of it stays clickable
-$("board").addEventListener("click",e=>{if(expanded.size)room.onclick(e);});
+function setBoardCollapsed(on){const b=$("board");b.classList.toggle("collapsed",!!on);$("boardChev").textContent=on?"▸":"▾";$("boardHead").setAttribute("aria-expanded",on?"false":"true");}
+function toggleBoard(){setBoardCollapsed(!$("board").classList.contains("collapsed"));}
+$("boardHead").addEventListener("click",e=>{e.stopPropagation();toggleBoard();});
+$("boardHead").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggleBoard();}});
+$("board").addEventListener("click",e=>{if(e.target.closest(".bh")||e.target.closest("#boardGrip"))return;if(expanded.size)room.onclick(e);});
+// drag the corner to resize the board card
+(function(){const g=$("boardGrip"),b=$("board");let drag=null;
+ g.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();const r=b.getBoundingClientRect();drag={x:e.clientX,y:e.clientY,w:r.width,h:$("boardBody").offsetHeight};g.setPointerCapture(e.pointerId);});
+ window.addEventListener("pointermove",e=>{if(!drag)return;const st=$("stage").getBoundingClientRect();
+  b.style.setProperty("--board-w",Math.max(120,Math.min(st.width*.6,drag.w+(e.clientX-drag.x)))+"px");
+  b.style.setProperty("--board-h",Math.max(32,Math.min(st.height*.7,drag.h+(e.clientY-drag.y)))+"px");});
+ window.addEventListener("pointerup",()=>{drag=null;});})();
 $("boardBody").addEventListener("wheel",e=>{const b=e.currentTarget;if(e.ctrlKey){e.preventDefault();return;}e.stopPropagation();
  if((e.deltaY<0&&b.scrollTop<=0)||(e.deltaY>0&&b.scrollTop+b.clientHeight>=b.scrollHeight-1))e.preventDefault();},{passive:false});
 let lastT=performance.now();
@@ -864,7 +970,13 @@ function render(now){const dt=Math.min(.1,(now-lastT)/1000);lastT=now;const t=no
  drawOverlay(studs);
  if(!S){ctx.fillStyle="#000a";ctx.font="bold 15px sans-serif";const m="按「▶ 開始上課」或「🧪 模擬試跑」，也可以載入紀錄重播";const w=ctx.measureText(m).width+20;ctx.beginPath();ctx.roundRect(W/2-w/2,H-36,w,28,8);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(m,W/2-w/2+10,H-17);}
  requestAnimationFrame(render);}
-let lastPtr="mouse";room.addEventListener("pointerdown",e=>{lastPtr=e.pointerType||"mouse";});
+let lastPtr="mouse";
+function showTapRing(clientX,clientY,hold){const stage=$("stage"),el=$("tapRing"),r=stage.getBoundingClientRect();
+ el.style.left=(clientX-r.left)+"px";el.style.top=(clientY-r.top)+"px";
+ el.classList.remove("show");void el.offsetWidth;el.classList.add("show");el.dataset.active="1";
+ clearTimeout(showTapRing._t);if(!hold)showTapRing._t=setTimeout(()=>{el.classList.remove("show");el.dataset.active="0";},400);}
+room.addEventListener("pointerdown",e=>{lastPtr=e.pointerType||"mouse";showTapRing(e.clientX,e.clientY);});
+window.showTapRing=showTapRing;window.toggleBoard=toggleBoard;window.setBoardCollapsed=setBoardCollapsed;
 room.onclick=e=>{const r=room.getBoundingClientRect(),x=(e.clientX-r.left)*(W/(r.width||W)),y=(e.clientY-r.top)*(H/(r.height||H)),pad=lastPtr==="touch"?10:0;
  const hb=hitBubbles.slice().reverse().find(b=>x>=b.x-pad&&x<=b.x+b.w+pad&&y>=b.y-pad&&y<=b.y+b.h+pad);
  // one bubble at a time is brought to the front; clicking it again, or anywhere else, puts it back
@@ -884,5 +996,31 @@ function drawChart(){const w=cc.clientWidth,h=cc.clientHeight;cx.setTransform(DP
  const y0=h-8,sc=(h-26)/100;cx.strokeStyle="#ddd";cx.lineWidth=1;[0,50,100].forEach(v=>{const y=y0-v*sc;cx.beginPath();cx.moveTo(30,y);cx.lineTo(w-8,y);cx.stroke();cx.fillStyle="#888";cx.fillText(v,4,y+4);});
  if(!S||!S.attention.length)return;const tot=Math.max(1,S.meta.minutes);cx.strokeStyle="#2f7d4f";cx.fillStyle="#2f7d4f";cx.lineWidth=2;cx.beginPath();
  S.attention.forEach((p,i)=>{const x=30+p.min/tot*(w-40),y=y0-p.value*sc;i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();S.attention.forEach(p=>{cx.fillRect(30+p.min/tot*(w-40)-2,y0-p.value*sc-2,4,4);});cx.lineWidth=1;}
+// ---------- fullscreen observe ----------
+function isObserveFs(){return $("observe").classList.contains("fs-on")||document.fullscreenElement===$("observe")||document.webkitFullscreenElement===$("observe");}
+function syncFsStat(){if($("fsStat"))$("fsStat").textContent=$("stat").textContent;}
+new MutationObserver(syncFsStat).observe($("stat"),{childList:true,characterData:true,subtree:true});
+function applyFsLayout(on){const ob=$("observe");ob.classList.toggle("fs-on",!!on);document.body.classList.toggle("fs-on",!!on);
+ $("btnFull").textContent=on?"⛶ 退出全螢幕":"⛶ 全螢幕觀察";
+ if(on){["secDetail","secLog"].forEach(id=>$(id).classList.add("open"));ob.classList.remove("side-hidden");$("btnSide").classList.add("on");syncFsStat();}
+ else{ob.classList.remove("side-hidden","pseudo-fs");document.body.classList.remove("fs-fallback");}
+ setTimeout(resize,40);}
+function enterPseudoFs(){$("observe").classList.add("pseudo-fs");document.body.classList.add("fs-fallback");applyFsLayout(true);}
+function exitPseudoFs(){$("observe").classList.remove("pseudo-fs");document.body.classList.remove("fs-fallback");applyFsLayout(false);}
+async function enterObserveFs(){const el=$("observe");let ok=false;
+ try{if(el.requestFullscreen){await el.requestFullscreen();ok=!!(document.fullscreenElement||document.webkitFullscreenElement);}
+  else if(el.webkitRequestFullscreen){el.webkitRequestFullscreen();ok=!!(document.fullscreenElement||document.webkitFullscreenElement);}}catch(e){ok=false;}
+ if(!ok)enterPseudoFs();else applyFsLayout(true);}
+async function exitObserveFs(){try{if(document.fullscreenElement||document.webkitFullscreenElement){if(document.exitFullscreen)await document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}}catch(e){}
+ exitPseudoFs();}
+function toggleObserveFs(){return isObserveFs()?exitObserveFs():enterObserveFs();}
+function toggleFsSide(){if(!isObserveFs())return;const ob=$("observe");const hide=!ob.classList.contains("side-hidden");ob.classList.toggle("side-hidden",hide);$("btnSide").classList.toggle("on",!hide);setTimeout(resize,40);}
+$("btnFull").onclick=()=>toggleObserveFs();$("btnFsExit").onclick=()=>exitObserveFs();$("btnSide").onclick=()=>toggleFsSide();
+function onFsChange(){const native=document.fullscreenElement===$("observe")||document.webkitFullscreenElement===$("observe");
+ if(native)applyFsLayout(true);else if(!$("observe").classList.contains("pseudo-fs"))applyFsLayout(false);
+ setTimeout(resize,40);}
+document.addEventListener("fullscreenchange",onFsChange);document.addEventListener("webkitfullscreenchange",onFsChange);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("observe").classList.contains("fs-on")&&!(document.fullscreenElement||document.webkitFullscreenElement)){e.preventDefault();exitPseudoFs();}});
+window.toggleObserveFs=toggleObserveFs;window.exitObserveFs=exitObserveFs;window.toggleFsSide=toggleFsSide;window.isObserveFs=isObserveFs;
 loadSettings();resize();requestAnimationFrame(render);
 </script></body></html>
