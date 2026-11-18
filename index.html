@@ -39,6 +39,8 @@ textarea{font-family:monospace;height:140px}.row{display:flex;gap:6px}.row>*{fle
 #detail{font-size:12px}#detail .act{border-left:3px solid #6a9;padding-left:4px;margin:3px 0}
 #errbar{display:none;background:#fdd;color:#900;padding:3px 8px;border-radius:6px;font-size:12px}
 details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
+#advSettings{margin-top:8px;border:1px solid #cfd6e0;border-radius:7px;padding:2px 8px 6px;background:#f8fafc}
+#advSettings>summary{margin-top:0;padding:6px 0;font-size:13px;font-weight:bold}
 .hint{font-size:11px;color:#777}
 /* mobile-only pieces; on desktop the section wrappers vanish from layout */
 .mhead{display:none}.msec{display:contents}#room{touch-action:manipulation}
@@ -73,15 +75,17 @@ details summary{cursor:pointer;font-size:12px;color:#335;margin-top:8px}
 #observe.fs-on #center{display:contents}
 #observe.fs-on #controls,#observe.fs-on #chart,#observe.fs-on #errbar{display:none!important}
 #observe.fs-on #stage{grid-column:1;grid-row:2;border-radius:0;width:auto;height:auto;min-width:0;min-height:0;aspect-ratio:auto;max-width:none}
-#observe.fs-on #side{grid-column:2;grid-row:2;min-height:0;min-width:0;margin:0;border-radius:0;max-height:none;overflow:auto;display:flex;flex-direction:column}
+#observe.fs-on #side{grid-column:2;grid-row:2;min-height:0;min-width:0;margin:0;border-radius:0;max-height:none;overflow:hidden;display:flex;flex-direction:column}
 #observe.fs-on.side-hidden #side{display:none!important}
-#observe.fs-on .msec{display:block;border-top:1px solid #e3e6ea;flex:1 1 auto;min-height:0;overflow:auto}
+#observe.fs-on .msec{display:flex;flex-direction:column;border-top:1px solid #e3e6ea;flex:1 1 0;min-height:0;min-width:0;overflow:hidden;position:relative}
 #observe.fs-on .msec:first-child{border-top:none}
-#observe.fs-on .msec>h3{display:flex;align-items:center;cursor:pointer;margin:0;padding:8px;font-size:14px;border-bottom:none;-webkit-tap-highlight-color:transparent}
+#observe.fs-on .msec>h3{display:flex;align-items:center;cursor:pointer;margin:0;padding:8px;font-size:14px;border-bottom:none;flex:0 0 auto;-webkit-tap-highlight-color:transparent}
 #observe.fs-on .msec>h3::after{content:"▸";margin-left:auto;color:#668}
 #observe.fs-on .msec.open>h3::after{content:"▾"}
+#observe.fs-on .msec:not(.open){flex:0 0 auto;overflow:hidden}
 #observe.fs-on .msec:not(.open)>:not(h3){display:none!important}
-#observe.fs-on .msec.open #detail,#observe.fs-on .msec.open #log{max-height:none!important;flex:1}
+#observe.fs-on .msec.open{flex:1 1 0;min-height:0}
+#observe.fs-on .msec.open #detail,#observe.fs-on .msec.open #log{flex:1 1 auto;min-height:0;max-height:none!important;overflow:auto;overscroll-behavior:contain}
 body.fs-on{overflow:hidden}
 @media (max-width:760px){
  #observe.fs-on{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
@@ -109,8 +113,11 @@ body.fs-on{overflow:hidden}
 <h3 style="margin-top:10px">📚 課程</h3>
 <label>科目／主題</label><input id="topic" value="國中理化：浮力">
 <div class="row"><div><label>課程長度（模擬分鐘）</label><input id="minutes" type="number" value="10" min="1"></div><div><label>每回合分鐘數</label><input id="tick" type="number" value="1" min="1"></div></div>
-<div class="row"><div title="對應 AI 模型的 temperature 參數"><label>個性度</label><input id="temp" type="number" value="0.9" step="0.1" min="0.1" max="2" title="對應 AI 模型的 temperature 參數（0.1～2）"><div class="hint">低：乖乖照規矩；高：行為多變、有個性</div></div>
-<div><label>同時呼叫上限</label><input id="conc" type="number" value="4" min="1" max="11"><div class="hint">一次同時問幾個學生；太高可能被服務擋</div></div></div>
+<div class="row"><div><label>同時呼叫上限</label><input id="conc" type="number" value="4" min="1" max="11"><div class="hint">一次同時問幾個學生；太高可能被服務擋</div></div></div>
+<details id="advSettings"><summary>進階設定</summary>
+<div title="AI 隨機度：對應 AI 模型的 temperature 參數（0.1～1）"><label>AI 隨機度</label><input id="temp" type="number" value="0.9" step="0.1" min="0.1" max="1" title="AI 隨機度：對應 AI 模型的 temperature 參數（0.1～1）">
+<div class="hint">越高，同一個個性的反應越多變；越低，反應越固定。角色個性請在角色卡調整</div></div>
+</details>
 <h3 style="margin-top:10px">🧑‍🏫 角色設定</h3>
 <label><input type="checkbox" id="randomize" style="width:auto"> 每次開始時自動隨機產生學生</label>
 <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap"><button id="btnRand">🎲 隨機學生</button><button id="btnAdd">＋ 新增學生</button><button id="btnDefault">↺ 預設名單</button></div>
@@ -200,11 +207,13 @@ $("btnFromJson").onclick=()=>{try{let d=JSON.parse($("personasJson").value);cons
  personas=fixSeats(st.slice(0,MAX_SEATS).map(normPersona));if(d.teacher)teacherP={...DEFAULT_TEACHER,...d.teacher};renderCards();savePersonas();}catch(e){showErr("JSON 匯入失敗："+e.message);}};
 // ---------- settings ----------
 const FIELDS=["provider","baseUrl","tModel","sModel","topic","minutes","tick","temp","conc","speed"];
+function clampTemp(){const el=$("temp");if(!el)return .9;let v=parseFloat(el.value);if(!Number.isFinite(v))v=.9;v=Math.round(Math.max(.1,Math.min(1,v))*10)/10;if(el.value!==String(v))el.value=String(v);return v;}
 function loadSettings(){const s=JSON.parse(localStorage.getItem("cls_settings")||"{}");FIELDS.forEach(f=>{if(s[f]!=null)$(f).value=s[f];});
+ const prev=s.temp;clampTemp();if(prev!=null&&String(prev)!==$("temp").value){s.temp=$("temp").value;localStorage.setItem("cls_settings",JSON.stringify({...s,temp:$("temp").value}));}
  if(!s.baseUrl)applyPreset();$("apiKey").value=localStorage.getItem("cls_apikey")||"";migrateModels();modelHint();$("randomize").checked=!!s.randomize;
  try{const p=JSON.parse(localStorage.getItem("cls_personas2"));personas=fixSeats(p.students.map(normPersona));teacherP={...DEFAULT_TEACHER,...p.teacher};}catch(e){personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));}
  renderCards();}
-function saveSettings(){const s={};FIELDS.forEach(f=>s[f]=$(f).value);s.randomize=$("randomize").checked;localStorage.setItem("cls_settings",JSON.stringify(s));localStorage.setItem("cls_apikey",$("apiKey").value);}
+function saveSettings(){clampTemp();const s={};FIELDS.forEach(f=>s[f]=$(f).value);s.randomize=$("randomize").checked;localStorage.setItem("cls_settings",JSON.stringify(s));localStorage.setItem("cls_apikey",$("apiKey").value);}
 function applyPreset(){const p=PRESETS[$("provider").value];$("baseUrl").value=p.url;$("tModel").value=p.model;$("sModel").value=p.sModel||"";if(p.conc)$("conc").value=p.conc;modelHint();}
 function modelHint(){const p=PRESETS[$("provider").value]||{};$("modelHint").textContent=p.hint||"";}
 // model names that providers have retired → replace saved settings automatically
@@ -239,7 +248,7 @@ async function chatRaw(model,system,user,ctx,tries=3){let rl429=0;
  for(let i=0;i<tries;i++){try{return await limit(async()=>{
   const url=$("baseUrl").value.replace(/\/+$/,"")+"/chat/completions";const key=$("apiKey").value.trim();
   const headers={"Content-Type":"application/json"};if(key)headers.Authorization="Bearer "+key;
-  const body={model,temperature:+$("temp").value||0.9,messages:[{role:"system",content:system},{role:"user",content:user+(i>0?"\n\n（注意：上次輸出不是合法 JSON。只輸出一個 JSON 物件，不要任何其他文字。）":"")}]};
+  const body={model,temperature:clampTemp(),messages:[{role:"system",content:system},{role:"user",content:user+(i>0?"\n\n（注意：上次輸出不是合法 JSON。只輸出一個 JSON 物件，不要任何其他文字。）":"")}]};
   usage.calls++;showUsage();
   const r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
   if(!r.ok){const tx=await r.text();const e=new Error(`HTTP ${r.status}：${tx.slice(0,200)}${httpHint(r.status,tx)}`);e.status=r.status;e.retryAfter=+r.headers.get("retry-after")||0;throw e;}
@@ -695,7 +704,7 @@ function hash(s){let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;r
 // The teacher only moves along the front lane (x=FRONT) and the aisles between desk columns, so never walks through furniture.
 const AISLES=[38,205,395,562],FRONT=160,HOME={x:100,z:300},PODIUM={x0:45,x1:88,z0:440,z1:515};
 const TA={x:HOME.x,z:HOME.z,path:[],face:[1,0],walk:0,moving:false,act:"lecture",target:null};
-function resetAnim(){SPEECH=null;Object.assign(TA,{x:HOME.x,z:HOME.z,path:[],face:[1,0],walk:0,moving:false,act:"lecture",target:null});poseCache={};attCache={};}
+function resetAnim(){SPEECH=null;Object.assign(TA,{x:HOME.x,z:HOME.z,path:[],face:[1,0],walk:0,moving:false,act:"lecture",target:null});poseCache={};attCache={};resetGlances();}
 function nearestAisle(z){return AISLES.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);}
 function route(to,from){from=from||TA;const pts=[];let cur={x:from.x,z:from.z};
  if(cur.x>FRONT+5){const a=nearestAisle(cur.z);if(Math.abs(cur.z-a)>1){cur={x:cur.x,z:a};pts.push(cur);}
@@ -721,13 +730,53 @@ function updateAnim(dt){TA.moving=false;const p0=TA.path[0];
 // smooth pose transitions between student actions
 let poseCache={},attCache={},FDT=0.016;
 function lerpDeep(a,b,f){if(Array.isArray(b))return b.map((v,i)=>lerpDeep(a&&a[i],v,f));if(typeof b==="number")return typeof a==="number"?a+(b-a)*f:b;return b;}
-function smoothPose(key,p){const c=poseCache[key];const f=Math.min(1,FDT*5*Math.max(1,speedFactor()*.6));
- const out=c?{...p,hip:lerpDeep(c.hip,p.hip,f),knee:lerpDeep(c.knee,p.knee,f),foot:lerpDeep(c.foot,p.foot,f),sh:lerpDeep(c.sh,p.sh,f),shL:lerpDeep(c.shL,p.shL,f),shR:lerpDeep(c.shR,p.shR,f),head:lerpDeep(c.head,p.head,f),armL:lerpDeep(c.armL,p.armL,f),armR:lerpDeep(c.armR,p.armR,f),face:lerpDeep(c.face,p.face,f)}:p;
+function smoothPose(key,p){const c=poseCache[key];const f=Math.min(1,FDT*5*Math.max(1,speedFactor()*.6)),ff=Math.min(1,FDT*14);
+ const out=c?{...p,hip:lerpDeep(c.hip,p.hip,f),knee:lerpDeep(c.knee,p.knee,f),foot:lerpDeep(c.foot,p.foot,f),sh:lerpDeep(c.sh,p.sh,f),shL:lerpDeep(c.shL,p.shL,f),shR:lerpDeep(c.shR,p.shR,f),head:lerpDeep(c.head,p.head,f),armL:lerpDeep(c.armL,p.armL,f),armR:lerpDeep(c.armR,p.armR,f),face:lerpDeep(c.face,p.face,ff)}:p;
  poseCache[key]=out;return out;}
 function smoothAtt(key,v){const c=attCache[key];const o=c==null?v:c+(v-c)*Math.min(1,FDT*4);attCache[key]=o;return o;}
-function idleGlance(name){const h=hash(name),per=9+h%8,ph=(clockNow()/1000+h%97)/per,k=Math.floor(ph),fr=ph-k;return fr<1.3/per?((k+h)%2?1:-1):0;}
+// v14b: idle glances are rare (at most about as often as v13); most turns are toward a nearby speaker. Starts stay staggered; idle looks cap how many face the same way.
+const glanceMem={};
+function resetGlances(){for(const k of Object.keys(glanceMem))delete glanceMem[k];if(window.__glanceLog)window.__glanceLog.length=0;}
+function glanceEase(u,kind){u=Math.max(0,Math.min(1,u));if(kind<.35)return u*u*(3-2*u);if(kind<.7)return 1-Math.pow(1-u,2.6);const a=u*u*(3-2*u);return a*.45+(1-Math.pow(1-u,2))*.55;}
+function glanceNow(){return clockNow()/1000;}
+function glanceCur(g){const u=g.dur<=0?1:Math.min(1,(glanceNow()-g.t0)/g.dur);return g.dir+(g.target-g.dir)*glanceEase(u,g.ease);}
+function idleStudents(){return (S?S.students:previewStudents()).filter(st=>["listen","notes","daydream"].includes((st.state&&st.state.action)||"listen"));}
+function pickGlanceSide(name){
+ const cap=Math.max(2,Math.ceil(idleStudents().length*.35));
+ const now=glanceNow();const cnt={[-1]:0,[1]:0};
+ for(const [n,g] of Object.entries(glanceMem)){if(n===name)continue;const u=g.dur<=0?1:Math.min(1,(now-g.t0)/g.dur);
+  const v=Math.abs(g.target)>0.05&&u<1?g.target:Math.abs(g.target)>0.05&&now<g.holdUntil?g.target:0;
+  if(v<0)cnt[-1]++;else if(v>0)cnt[1]++;}
+ let side=Math.random()<.5?-1:1;
+ if(cnt[side]>=cap)side=-side;
+ if(cnt[side]>=cap)return 0;
+ return side;}
+function nearbySpeaker(st){if(!S)return null;const near=new Set(neighbours(st));
+ const cands=S.students.filter(o=>o!==st&&near.has(o.name)&&["chat","ask","answer","wait"].includes(o.state.action));
+ if(!cands.length)return null;return cands.find(o=>o.state.target===st.name)||cands[0];}
+function sideToward(st,o){const a=seatXZ(st.seat),b=seatXZ(o.seat),dz=b.z-a.z;return Math.abs(dz)<8?0:(dz>0?1:-1);}
+function beginTurn(st,g,now,target,reason,dur,hold){
+ g.dir=glanceCur(g);g.t0=now;g.target=target;g.reason=reason||"idle";g.angle=target?(.55+.4*Math.random()):.94;g.dur=dur;g.ease=Math.random();g.holdUntil=now+g.dur+hold;
+ if(target)(window.__glanceLog=window.__glanceLog||[]).push({name:st.name,t:now,target,dur,reason,angle:g.angle});}
+function studentGlance(st){
+ const name=st.name,now=glanceNow();let g=glanceMem[name];
+ if(!g){const h=hash(name),delay=2+(h%16000)/1000+(h%11)*.08;
+  g=glanceMem[name]={dir:0,target:0,angle:.94,t0:now,dur:.01,ease:.5,holdUntil:now+delay,reason:"idle",stim:null,stimAt:0};}
+ const idle=["listen","notes","daydream"].includes((st.state&&st.state.action)||"listen");
+ const speaker=idle?nearbySpeaker(st):null;
+ const u=g.dur<=0?1:Math.min(1,(now-g.t0)/g.dur);
+ if(speaker){const sid=sideToward(st,speaker),key=speaker.name+"|"+(speaker.state.action||"");
+  if(g.stim!==key){g.stim=key;g.stimAt=now+.2+(hash(name+key)%1300)/1000;}
+  if(sid&&now>=g.stimAt&&(g.reason!=="speaker"||Math.abs(g.target-sid)>.05))beginTurn(st,g,now,sid,"speaker",.35+.55*Math.random(),.8+1.4*Math.random());
+  else if(g.reason==="speaker"&&u>=1&&now>=g.holdUntil)g.holdUntil=now+.5;}
+ else{g.stim=null;
+  if(g.reason==="speaker"&&u>=1&&now>=g.holdUntil)beginTurn(st,g,now,0,"idle",.3+.4*Math.random(),12+10*Math.random());}
+ if(u>=1&&now>=g.holdUntil&&!speaker&&g.reason!=="speaker"){
+  if(Math.abs(g.target)>.05)beginTurn(st,g,now,0,"idle",.3+.4*Math.random(),12+10*Math.random());
+  else{const side=pickGlanceSide(st.name);if(side)beginTurn(st,g,now,side,"idle",.95+.65*Math.random(),.15+.3*Math.random());else g.holdUntil=now+8+8*Math.random();}}
+ return glanceCur(g);}
 function studentPose(st,s,t){const a=st.state.action;let f=[-1,0];
- if(["listen","notes","daydream"].includes(a)){const g=idleGlance(st.name);if(g)f=[-.35,g*.94];}
+ if(["listen","notes","daydream"].includes(a)){const g=studentGlance(st);if(Math.abs(g)>.04){const ang=(glanceMem[st.name]&&glanceMem[st.name].angle)||.94;f=[-.35-Math.abs(g)*.08,g*ang];const n=Math.hypot(...f)||1;f=[f[0]/n,f[1]/n];}}
  if(a==="chat"||a==="wait"){const o=S&&S.students.find(q=>q.name===st.state.target);if(o){const p=seatXZ(o.seat),dx=p.x-s.x,dz=p.z-s.z,d=Math.hypot(dx,dz)||1;f=[(-1+2*dx/d)/2,dz/d];const n=Math.hypot(...f)||1;f=[f[0]/n,f[1]/n];}else f=[-.3,.95];}
  const L=(fw,sd,h,ff)=>{ff=ff||[-1,0];return [s.x+ff[0]*fw-ff[1]*sd,s.z+ff[1]*fw+ff[0]*sd,h];};
  const pose={hip:L(0,0,26),knee:L(18,0,27),foot:L(20,0,0),sh:L(1,0,56),shL:L(1,10,54),shR:L(1,-10,54),head:L(3,0,70),face:f,armL:[L(10,7,42),L(24,6,40)],armR:[L(10,-7,42),L(24,-6,40)],eyes:true};
@@ -735,7 +784,7 @@ function studentPose(st,s,t){const a=st.state.action;let f=[-1,0];
  else if(a==="ask"){pose.shR=L(1,-12,56);pose.armR=[L(2,-18,82),L(3,-19,106+Math.sin(t*4)*1.5)];}
  else if(a==="answer"){pose.hip=L(-2,0,46);pose.knee=L(0,0,24);pose.foot=L(2,0,0);pose.sh=L(-1,0,78);pose.head=L(0,0,92);pose.shR=L(-1,-12,78);pose.armL=[L(4,9,64),L(8,9,52)];pose.shL=L(-1,10,76);pose.armR=[L(0,-18,100),L(1,-19,122)];}
  else if(a==="chat"||a==="wait"){pose.armR=[L(8,-7,48,f),L(18,-6,52,f)];}
- else if(a==="daydream"){pose.head=L(0,0,73);pose.armR=[L(18,-6,40),L(9,-3,61)];pose.face=[-.6,0];}
+ else if(a==="daydream"){pose.head=L(0,0,73);pose.armR=[L(18,-6,40),L(9,-3,61)];}
  else if(a==="phone"){pose.head=L(8,0,65);pose.armL=[L(10,5,40),L(18,2,46)];pose.armR=[L(10,-5,40),L(18,-2,46)];pose.phone=L(20,0,48);}
  else if(a==="sleep"){pose.sh=L(18,0,44);pose.shL=L(18,-13,44);pose.shR=L(18,13,44);pose.head=L(34,0,47);pose.armL=[L(26,-22,41),L(37,-11,41)];pose.armR=[L(26,22,41),L(37,11,41)];pose.eyes=false;}
  return pose;}
@@ -1022,5 +1071,9 @@ function onFsChange(){const native=document.fullscreenElement===$("observe")||do
 document.addEventListener("fullscreenchange",onFsChange);document.addEventListener("webkitfullscreenchange",onFsChange);
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("observe").classList.contains("fs-on")&&!(document.fullscreenElement||document.webkitFullscreenElement)){e.preventDefault();exitPseudoFs();}});
 window.toggleObserveFs=toggleObserveFs;window.exitObserveFs=exitObserveFs;window.toggleFsSide=toggleFsSide;window.isObserveFs=isObserveFs;
+window.clampTemp=clampTemp;window.loadSettings=loadSettings;
+window.__glanceState=()=>Object.fromEntries(Object.entries(glanceMem).map(([n,g])=>[n,{dir:g.dir,target:g.target,angle:g.angle,t0:g.t0,dur:g.dur,ease:g.ease,holdUntil:g.holdUntil,cur:glanceCur(g)}]));
+window.__seedGlances=(at)=>{const now=at==null?glanceNow():at;const studs=S?S.students:previewStudents();
+ studs.forEach((st,i)=>{const side=i%3===0?-1:i%3===1?1:0;glanceMem[st.name]={dir:0,target:side,angle:.65+(i%5)*.07,t0:now-(.12+i*.09),dur:.85,ease:.45,holdUntil:now+3};});};
 loadSettings();resize();requestAnimationFrame(render);
 </script></body></html>
